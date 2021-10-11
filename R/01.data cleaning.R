@@ -1,18 +1,24 @@
 # Import Library
 library(tidyverse)
-
+# library(tictoc)
 
 ################################################################################# I ### Load data
 path <- fs::path("", "Volumes", "Gillis_Research", "Christelle Colin-Leitzinger", "gnomAD")
 
+# tic("total")
+# tic("loading")
+# gnomad <- 
+#   read.delim(paste0(path, "/data/thousands_first_rows.txt"))
 gnomad <- 
   read.delim(paste0(path, "/data/bigger_example_variant_data.txt"))
-
+# toc()
 
 ################################################################################# II ### Data cleaning
+# tic("recoding")
 gnomad_decoded <- gnomad %>% 
-  mutate(ID = factor(row_number())) %>% 
-  select(ID, everything()) %>% 
+  mutate(ID2 = factor(row_number())) %>% 
+  select(ID2, everything()) %>% 
+  
   # Generate allele count variables from the INFO var
   mutate(alt_allele_count = str_match(INFO, "AC=(.*?);")[,2]) %>%
   mutate(alt_allele_count_afr_female = str_match(INFO, "AC_female=(.*?);")[,2]) %>%
@@ -54,13 +60,23 @@ gnomad_decoded <- gnomad %>%
   # bin edges are: 30.0|35.0|40.0|45.0|50.0|55.0|60.0|65.0|70.0|75.0|80.0; 
   # total number of individuals of any genotype bin: 2547|3423|4546|8487|10355|12693|11933|10534|8882|5991|4136|1935">
   mutate(age_hist_het_bin_freq = str_match(INFO, "age_hist_het_bin_freq=(.*?);")[,2]) %>%
+  
+  # "Count of age values falling below lowest histogram bin edge for heterozygous individuals">
+  mutate("<30" = as.numeric(str_match(INFO, "age_hist_het_n_smaller=(.*?);")[,2])) %>%
+  # "Count of age values falling above highest histogram bin edge for heterozygous individuals">
+  mutate(">80" = as.numeric(str_match(INFO, "age_hist_het_n_larger=(.*?);")[,2])) %>% 
+  
+  add_row("ID"="All individuals", 
+          "age_hist_het_bin_freq"= "3423|4546|8487|10355|12693|11933|10534|8882|5991|4136",
+          "<30" = 2547, ">80" = 1935) %>%
+  
   separate(col = age_hist_het_bin_freq,
            into = c("30-35","35-40","40-45","45-50","50-55","55-60","60-65","65-70","70-75","75-80"), 
            sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>% 
-  # "Count of age values falling above highest histogram bin edge for heterozygous individuals">
-  mutate(">80" = str_match(INFO, "age_hist_het_n_larger=(.*?);")[,2]) %>%
-  # "Count of age values falling below lowest histogram bin edge for heterozygous individuals">
-  mutate("<30" = str_match(INFO, "age_hist_het_n_smaller=(.*?);")[,2]) %>%
+  mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>% 
+  
+  mutate(nbr_individuals = rowSums(select(.,`30-35`:`>80`), na.rm = TRUE)) %>% 
+  
   # allele type
   mutate(allele_type = str_match(INFO, "allele_type=(.*?);")[,2]) %>%
   # variant type
@@ -111,6 +127,9 @@ gnomad_decoded <- gnomad %>%
   # separate(col = ens_vep, paste("ens_vep", 1:67, sep=""), 
   #          sep = "\\|", remove = F, extra = "warn", fill = "right")
 
+# toc() # 2 sec elapsed
+# toc() # 4.437 sec elapsed 21 hrs for all rows
+
 str_count("Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|
   cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|ALLELE_NUM|DISTANCE|
   STRAND|FLAGS|VARIANT_CLASS|MINIMISED|SYMBOL_SOURCE|HGNC_ID|CANONICAL|TSL|APPRIS|CCDS|ENSP|SWISSPROT|
@@ -153,17 +172,92 @@ gnomad_decoded1 <- gnomad_decoded %>%
                            age_bin == "70-75" ~ 75,
                            age_bin == "75-80" ~ 80,
                            TRUE ~ 90
-    )) %>% 
-  filter(count_in_bin != 0) #%>% 
+    )) %>%
+  mutate(center = case_when(age_bin == "<30" ~ 15,
+                           age_bin == "30-35" ~ 32.5,
+                           age_bin == "35-40" ~ 47.5,
+                           age_bin == "40-45" ~ 42.5,
+                           age_bin == "45-50" ~ 57.5,
+                           age_bin == "50-55" ~ 52.5,
+                           age_bin == "55-60" ~ 67.5,
+                           age_bin == "60-65" ~ 62.5,
+                           age_bin == "65-70" ~ 77.5,
+                           age_bin == "70-75" ~ 72.5,
+                           age_bin == "75-80" ~ 87.5,
+                           TRUE ~ 90
+  ))
+  # filter(count_in_bin != 0) #%>% 
   # select(ID, age_bin, count_in_bin, everything())
 
 gnomad_decoded1 %>% 
+  ggplot(aes(x= age_bin, y= count_in_bin))+
+  geom_col()+
+  theme_minimal()
+
+gnomad_decoded1 %>% 
+  ggplot(aes(x= age_bin, y= count_in_bin))+
+  geom_col()+
+  theme_minimal()+
+  facet_wrap(.~ ID, scales = "free_y")
+
+gnomad_decoded1 %>% 
+  ggplot(aes(x= center, y= count_in_bin))+
+  geom_density(stat = "identity")+
+  theme_minimal()
+
+
+gnomad_decoded1 %>% 
+  ggplot(aes(x = age_bin, y = count_in_bin)) + 
+  geom_bar(stat = "identity")+
+  theme_minimal()+
+  facet_wrap(.~ID)
+
+p2 <- ggplot(gnomad_decoded1, aes(x = center, y = count_in_bin)) + stat_smooth(aes(y = count_in_bin,x = center), method = "gam",se = FALSE,formula = y ~ s(x, k = 7))
+p2
+
+ggplot_build(p2)
+ggplot_build(p2)$plot$data
+ggplot_build(p2)$plot$layers
+ggplot_build(p2)$plot$mapping
+ggplot_build(p2)$plot$coordinates
+layer_data(p2, 1)
+
+p2_build = ggplot_build(p2)
+p2_fill <- data_frame(
+  x = p2_build$data[[1]]$x,
+  y = p2_build$data[[1]]$y#,
+  # group = factor(p2_build$data[[1]]$group, levels = c(1,2), labels = c("apples","bananas"))
+  )
+
+ggplot(gnomad_decoded1, aes(left, count_in_bin))+
+  stat_smooth(aes(y = count_in_bin,x = left), method = "gam",se = FALSE, formula = y ~ s(x, k = 7))+
+  # geom_area(data = p2_fill[p2_fill$group == "apples", ], 
+  #           aes(x=x, y=y), fill =  "#F8766D", alpha = 0.2, inherit.aes = F)+
+  geom_area(data = p2_fill, #[p2_fill$group == "bananas", ], 
+            aes(x=x, y=y), fill = "#00BFC4", alpha = 0.2, inherit.aes = F)+
+  theme_classic()
+
+
+
+
+
+
+
+
+
+
+
+
+#################################################################
+############# ____________Infering data____________ #############
+#################################################################
+# https://www.r-bloggers.com/2019/08/inferring-a-continuous-distribution-from-binned-data-by-ellis2013nz/
+
+gnomad_decoded1 %>% 
+  filter(count_in_bin != 0) %>% 
   group_by(ID, age_bin) %>%
   summarise(freq = n())
 
-
-
-# https://www.r-bloggers.com/2019/08/inferring-a-continuous-distribution-from-binned-data-by-ellis2013nz/
 volumes_bin <- dplyr::select(gnomad_decoded1, left, right) %>% 
   as.data.frame()
 
@@ -180,14 +274,17 @@ ggplot(volumes) +
   annotate("text", x = 700, y = 0.0027, label = "Blue line shows modelled distribution; black is density of the actual data.")
 
 # bin_based_mean (358 - very wrong)
-volumes %>%
+gnomad_decoded1 %>%
   mutate(mid = (left + replace_na(right, 2000)) / 2) %>%
   summarise(crude_mean = mean(mid)) %>%
   pull(crude_mean)
+#################################################################
 
 
 
-
+#################################################################
+############# ____________creating bins____________ #############
+#################################################################
 library(ggplot2)
 qplot(gnomad_decoded1, data=cbind(age_bin,count_in_bin), weight=count_in_bin, geom="histogram")
 
@@ -198,7 +295,6 @@ gnomad_decoded1 %>%
   geom_bar(stat = "identity")+
   theme_minimal()+
   facet_wrap(.~ID)
-
 
 gnomad_decoded1$binRange <- str_extract(gnomad_decoded1$age_bin, "[0-9]-*[0-9]+")
 
@@ -211,6 +307,7 @@ df <- cSplit(gnomad_decoded1, "binRange")
 ggplot(df, aes(x = binRange_1, y = count_in_bin, width = 0.025)) +
   geom_bar(stat = "identity"#, breaks=seq(0,0.125, by=0.025)
            )
+#################################################################
 
 
 
