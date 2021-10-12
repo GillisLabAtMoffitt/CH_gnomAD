@@ -1,5 +1,6 @@
 # Import Library
 library(tidyverse)
+library(e1071)
 # library(tictoc)
 
 ################################################################################# I ### Load data
@@ -11,14 +12,83 @@ path <- fs::path("", "Volumes", "Gillis_Research", "Christelle Colin-Leitzinger"
 #   read.delim(paste0(path, "/data/thousands_first_rows.txt"))
 gnomad <- 
   read.delim(paste0(path, "/data/bigger_example_variant_data.txt"))
+
+# path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
+# gnomad <- 
+#   read.delim(paste0(path, "/gnomAD_raw_data/thousand_row_gnomad.vcf.gz"))
 # toc()
+
 
 ################################################################################# II ### Data cleaning
 # tic("recoding")
 gnomad_decoded <- gnomad %>% 
-  mutate(ID2 = factor(row_number())) %>% 
-  select(ID2, everything()) %>% 
+  # unite(IDs, X.CHROM:ID, remove = FALSE, sep = "_")
+  mutate(IDs = factor(row_number())) %>% 
+  select(IDs, everything()) %>% 
   
+  # ab_hist_alt_bin_freq,Number=A,Type=String,Description="Histogram for AB in heterozygous individuals; 
+  # bin edges are: 0.00|0.05|0.10|0.15|0.20|0.25|0.30|0.35|0.40|0.45|0.50|0.55|0.60|0.65|0.70|0.75|0.80|0.85|0.90|0.95|1.00">
+  
+  # age_hist_het_bin_freq,Number=A,Type=String,Description="Histogram of ages of heterozygous individuals; 
+  # bin edges are: 30.0|35.0|40.0|45.0|50.0|55.0|60.0|65.0|70.0|75.0|80.0; 
+  # total number of individuals of any genotype bin: 2547|3423|4546|8487|10355|12693|11933|10534|8882|5991|4136|1935">
+  mutate(age_hist_het_bin_freq = str_match(INFO, "age_hist_het_bin_freq=(.*?);")[,2]) %>%
+  
+  # "Count of age values falling below lowest histogram bin edge for heterozygous individuals">
+  mutate("<30" = as.numeric(str_match(INFO, "age_hist_het_n_smaller=(.*?);")[,2])) %>%
+  # "Count of age values falling above highest histogram bin edge for heterozygous individuals">
+  mutate(">80" = as.numeric(str_match(INFO, "age_hist_het_n_larger=(.*?);")[,2])) %>% 
+  
+  add_row("IDs"="All individuals", "ID"="All individuals",
+          "age_hist_het_bin_freq"= "3423|4546|8487|10355|12693|11933|10534|8882|5991|4136",
+          "<30" = 2547, ">80" = 1935) %>%
+  
+  separate(col = age_hist_het_bin_freq,
+           into = c("30-35","35-40","40-45","45-50","50-55","55-60","60-65","65-70","70-75","75-80"), 
+           sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>% 
+  mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>% 
+  
+  mutate(nbr_individuals = rowSums(select(.,`30-35`:`>80`), na.rm = TRUE)) %>% 
+  filter(nbr_individuals > 10) %>% 
+  
+  pivot_longer(cols = c(grep("[[:digit:]]", colnames(.))), names_to = "age_bin", values_to = "sample_count") 
+
+
+################################################################################# III ### Goodness of Fit / Skewness : Select variant NOT consistent with the reference distribution 
+# https://www.r-bloggers.com/2015/01/goodness-of-fit-test-in-r/
+goodness_fit1 <- data.frame(matrix(nrow=1, ncol=0)) 
+goodness_fit2 <- data.frame(matrix(nrow=1, ncol=0)) 
+skew <- data.frame(matrix(nrow=1, ncol=0)) 
+
+for(i in unique(gnomad_decoded$IDs)) {
+  
+  All <- gnomad_decoded %>% filter(IDs == "All individuals") %>% select(sample_count)
+  
+  a <- bind_cols(gnomad_decoded %>% filter(IDs == i) %>% select(sample_count) , All) %>% 
+    `colnames<-`(c(i, "All"))
+  result <- chisq.test(a[,i], p=a$All, rescale.p=TRUE)$p.value
+  goodness_fit1 <- rbind(goodness_fit1, result)
+  
+  result <- ks.test(a[,i], a$All)$p.value
+  goodness_fit2 <- rbind(goodness_fit2, result)
+  
+  result <- skewness(a[[i]])
+  skew <- rbind(skew, result)
+  
+}
+df <- bind_cols(goodness_fit1, goodness_fit2, skew) %>% `colnames<-`(c("chisq", "kolmogorov", "skewness"))
+df$IDs <- c(unique(gnomad_decoded$IDs))
+
+
+
+
+gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs") %>% 
+  # filter the significative different
+  filter((chisq < 0.05 | kolmogorov < 0.05) & skewness > 0)
+
+
+################################################################################# IV ### Finishing extracting variables on the subsets of variant selected
+gnomad_decoded2 <- gnomad_decoded1 %>% 
   # Generate allele count variables from the INFO var
   mutate(alt_allele_count = str_match(INFO, "AC=(.*?);")[,2]) %>%
   mutate(alt_allele_count_afr_female = str_match(INFO, "AC_female=(.*?);")[,2]) %>%
@@ -50,32 +120,6 @@ gnomad_decoded <- gnomad %>%
   # GQ
   
   
-  
-  
-  
-  # ab_hist_alt_bin_freq,Number=A,Type=String,Description="Histogram for AB in heterozygous individuals; 
-  # bin edges are: 0.00|0.05|0.10|0.15|0.20|0.25|0.30|0.35|0.40|0.45|0.50|0.55|0.60|0.65|0.70|0.75|0.80|0.85|0.90|0.95|1.00">
-  
-  # age_hist_het_bin_freq,Number=A,Type=String,Description="Histogram of ages of heterozygous individuals; 
-  # bin edges are: 30.0|35.0|40.0|45.0|50.0|55.0|60.0|65.0|70.0|75.0|80.0; 
-  # total number of individuals of any genotype bin: 2547|3423|4546|8487|10355|12693|11933|10534|8882|5991|4136|1935">
-  mutate(age_hist_het_bin_freq = str_match(INFO, "age_hist_het_bin_freq=(.*?);")[,2]) %>%
-  
-  # "Count of age values falling below lowest histogram bin edge for heterozygous individuals">
-  mutate("<30" = as.numeric(str_match(INFO, "age_hist_het_n_smaller=(.*?);")[,2])) %>%
-  # "Count of age values falling above highest histogram bin edge for heterozygous individuals">
-  mutate(">80" = as.numeric(str_match(INFO, "age_hist_het_n_larger=(.*?);")[,2])) %>% 
-  
-  add_row("ID"="All individuals", 
-          "age_hist_het_bin_freq"= "3423|4546|8487|10355|12693|11933|10534|8882|5991|4136",
-          "<30" = 2547, ">80" = 1935) %>%
-  
-  separate(col = age_hist_het_bin_freq,
-           into = c("30-35","35-40","40-45","45-50","50-55","55-60","60-65","65-70","70-75","75-80"), 
-           sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>% 
-  mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>% 
-  
-  mutate(nbr_individuals = rowSums(select(.,`30-35`:`>80`), na.rm = TRUE)) %>% 
   
   # allele type
   mutate(allele_type = str_match(INFO, "allele_type=(.*?);")[,2]) %>%
