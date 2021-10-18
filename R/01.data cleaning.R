@@ -1,29 +1,33 @@
 # Import Library
 library(tidyverse)
 library(e1071)
+library(purrr)
 # library(tictoc)
 
 ################################################################################# I ### Load data
-path <- fs::path("", "Volumes", "Gillis_Research", "Christelle Colin-Leitzinger", "gnomAD")
+# path <- fs::path("", "Volumes", "Gillis_Research", "Christelle Colin-Leitzinger", "gnomAD")
 
 # tic("total")
 # tic("loading")
+# gnomad <-
+  # read.delim(paste0(path, "/data/thousands_first_rows.txt"))
 # gnomad <- 
-#   read.delim(paste0(path, "/data/thousands_first_rows.txt"))
-gnomad <- 
-  read.delim(paste0(path, "/data/bigger_example_variant_data.txt"))
+  # read.delim(paste0(path, "/data/bigger_example_variant_data.txt"))
 
-# path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
-# gnomad <- 
-#   read.delim(paste0(path, "/gnomAD_raw_data/thousand_row_gnomad.vcf.gz"))
+path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
+gnomad <-
+  read.delim(paste0(path, "/gnomAD_raw_data/dnmt3a_data.vcf.gz"), 
+             header = FALSE, 
+             col.names = c("X.CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO"))
 # toc()
 
 
 ################################################################################# II ### Data cleaning
 # tic("recoding")
 gnomad_decoded <- gnomad %>% 
-  # unite(IDs, X.CHROM:ID, remove = FALSE, sep = "_")
-  mutate(IDs = factor(row_number())) %>% 
+  mutate(X.CHROM = str_remove(X.CHROM, "chr")) %>% 
+  unite(IDs, c(X.CHROM, POS, REF, ALT), sep = "-") %>% 
+  # mutate(IDs = factor(row_number())) %>% 
   select(IDs, everything()) %>% 
   
   # ab_hist_alt_bin_freq,Number=A,Type=String,Description="Histogram for AB in heterozygous individuals; 
@@ -48,10 +52,16 @@ gnomad_decoded <- gnomad %>%
            sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>% 
   mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>% 
   
+  # Filter variant found in more than 10 individuals
   mutate(nbr_individuals = rowSums(select(.,`30-35`:`>80`), na.rm = TRUE)) %>% 
   filter(nbr_individuals > 10) %>% 
   
-  pivot_longer(cols = c(grep("[[:digit:]]", colnames(.))), names_to = "age_bin", values_to = "sample_count") 
+  pivot_longer(cols = c(grep("[[:digit:]]", colnames(.))), 
+               names_to = "age_bin", values_to = "sample_count") %>% 
+  mutate(age_bin = factor(age_bin, 
+                          levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
+                                     "55-60","60-65","65-70","70-75","75-80", ">80"))) %>% 
+  mutate(sample_density = sample_count / nbr_individuals)
 
 
 ################################################################################# III ### Goodness of Fit / Skewness : Select variant NOT consistent with the reference distribution 
@@ -81,14 +91,174 @@ df$IDs <- c(unique(gnomad_decoded$IDs))
 
 
 
-
+# Bind the distribution characteristic values
 gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs") %>% 
-  # filter the significative different
-  filter((chisq < 0.05 | kolmogorov < 0.05) & skewness > 0)
+  # filter the significatant different
+  filter((chisq <= 0.05 | kolmogorov <= 0.05) & skewness > 0)
 
+
+################################################################################# VI ### Filtering Consequence
+
+gnomad_decoded2 <- gnomad_decoded1 %>% 
+  mutate(ens_vep = str_match(INFO, ";vep=(.*?)$")[,2]) %>% 
+  separate(col = ens_vep, paste("ens_vep", 1:25, sep=""),
+           sep = ",", remove = T, extra = "warn", fill = "right") %>% 
+  keep(~!all(is.na(.))) %>% 
+  pivot_longer(cols = starts_with("ens_vep"), names_to = NULL, values_to = "ens_vep") %>% 
+  drop_na(ens_vep)
+# Consequence annotations from Ensembl VEP
+# Format: Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|
+# cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|ALLELE_NUM|DISTANCE|
+# STRAND|FLAGS|VARIANT_CLASS|MINIMISED|SYMBOL_SOURCE|HGNC_ID|CANONICAL|TSL|APPRIS|CCDS|ENSP|SWISSPROT|
+# TREMBL|UNIPARC|GENE_PHENO|SIFT|PolyPhen|DOMAINS|HGVS_OFFSET|GMAF|AFR_MAF|AMR_MAF|EAS_MAF|EUR_MAF|
+# SAS_MAF|AA_MAF|EA_MAF|ExAC_MAF|ExAC_Adj_MAF|ExAC_AFR_MAF|ExAC_AMR_MAF|ExAC_EAS_MAF|ExAC_FIN_MAF|
+# ExAC_NFE_MAF|ExAC_OTH_MAF|ExAC_SAS_MAF|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|
+# HIGH_INF_POS|MOTIF_SCORE_CHANGE|LoF|LoF_filter|LoF_flags|LoF_info
+ens_vep_var_names <- c("Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "
+  cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "
+  STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "
+  TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "
+  SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "
+  ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "
+  HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info")
+
+gnomad_decoded3 <- gnomad_decoded2 %>% 
+  separate(col = ens_vep, into = ens_vep_var_names,
+           # paste("ens_vep", 1:100, sep=""),
+           sep = "\\|", remove = F, extra = "warn", fill = "right")
+
+table(gnomad_decoded3$Consequence)
+table(gnomad_decoded3$SYMBOL)
+
+gnomad_decoded4 <- gnomad_decoded3 %>% 
+  filter(!str_detect(Consequence, "3_prime_UTR_variant|5_prime_UTR_variant"), SYMBOL == "DNMT3A")
+
+# toc() # 2 sec elapsed
+# toc() # 4.437 sec elapsed 21 hrs for all rows
+
+
+################################################################################# VI ### Plotting
+
+data_plot <- gnomad_decoded4 %>% 
+  distinct(IDs, age_bin, .keep_all = TRUE) %>% 
+  select("IDs", "nbr_individuals", "age_bin", "sample_count", sample_density, skewness) %>% 
+  mutate(age_bin = factor(age_bin, 
+                          levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
+                                     "55-60","60-65","65-70","70-75","75-80", ">80")))
+
+# data_plot <- data_plot[1:60,]
+
+# data_plot <- data_plot %>% 
+#   group_by(ID) %>% 
+#   pivot_longer(cols = c("<30", "30-35","35-40","40-45","45-50","50-55","55-60",
+#                         "60-65","65-70","70-75","75-80", ">80"), 
+#                names_to = "age_bin", values_to = "count_in_bin") %>% 
+#   ungroup() %>% 
+#   mutate(age_bin = factor(age_bin, 
+#                           levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
+#                                      "55-60","60-65","65-70","70-75","75-80", ">80"))) %>% 
+#   mutate(left = case_when(age_bin == "<30" ~ 0,
+#                           age_bin == "30-35" ~ 30,
+#                           age_bin == "35-40" ~ 35,
+#                           age_bin == "40-45" ~ 40,
+#                           age_bin == "45-50" ~ 45,
+#                           age_bin == "50-55" ~ 50,
+#                           age_bin == "55-60" ~ 55,
+#                           age_bin == "60-65" ~ 60,
+#                           age_bin == "65-70" ~ 65,
+#                           age_bin == "70-75" ~ 70,
+#                           age_bin == "75-80" ~ 75,
+#                           TRUE ~ 80
+#   )) %>% 
+#   mutate(right = case_when(age_bin == "<30" ~ 30,
+#                            age_bin == "30-35" ~ 35,
+#                            age_bin == "35-40" ~ 40,
+#                            age_bin == "40-45" ~ 45,
+#                            age_bin == "45-50" ~ 50,
+#                            age_bin == "50-55" ~ 55,
+#                            age_bin == "55-60" ~ 60,
+#                            age_bin == "60-65" ~ 65,
+#                            age_bin == "65-70" ~ 70,
+#                            age_bin == "70-75" ~ 75,
+#                            age_bin == "75-80" ~ 80,
+#                            TRUE ~ 90
+#   )) %>%
+#   mutate(center = case_when(age_bin == "<30" ~ 15,
+#                             age_bin == "30-35" ~ 32.5,
+#                             age_bin == "35-40" ~ 47.5,
+#                             age_bin == "40-45" ~ 42.5,
+#                             age_bin == "45-50" ~ 57.5,
+#                             age_bin == "50-55" ~ 52.5,
+#                             age_bin == "55-60" ~ 67.5,
+#                             age_bin == "60-65" ~ 62.5,
+#                             age_bin == "65-70" ~ 77.5,
+#                             age_bin == "70-75" ~ 72.5,
+#                             age_bin == "75-80" ~ 87.5,
+#                             TRUE ~ 90
+#   ))
+# filter(count_in_bin != 0) #%>% 
+# select(ID, age_bin, count_in_bin, everything())
+
+ref <- tibble(age_bin = c("<30", "30-35","35-40","40-45","45-50","50-55","55-60",
+                          "60-65","65-70","70-75","75-80", ">80"),
+              y = c(2547, 3423, 4546, 8487, 10355, 12693, 11933, 10534, 8882, 5991, 4136, 1935)) %>% 
+  mutate(age_bin = factor(age_bin, 
+                          levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
+                                     "55-60","60-65","65-70","70-75","75-80", ">80"))) %>% 
+  mutate(sum = sum(y)) %>% 
+  mutate(density = y / sum)
+sum <- unique(ref$sum)
+
+data_plot <-  full_join(data_plot, ref, by = "age_bin")
+ggplot(data = ref, aes(x =age_bin, y = density))+
+  geom_col(fill = "yellow", alpha = 0.5)+
+  theme_minimal()
+
+
+
+ggplot() + 
+  geom_col(data =ref, aes(x =age_bin, y = density), position = "identity", fill = "yellow", alpha = 0.5)+
+  geom_col(data = data_plot ,aes(x= age_bin, y= sample_density), position = "identity", alpha = 0.5)+
+  theme_minimal()
+
+
+ggplot() + 
+  geom_col(data = data_plot ,aes(x= age_bin, y= sample_density), position = "identity", alpha = 0.6)+
+  theme_minimal()+
+  facet_wrap(.~ IDs, scales = "free_y")+
+  geom_col(data =ref, aes(x =age_bin, y = density), position = "identity", fill = "yellow", alpha = 0.5)+ 
+  geom_text(
+    data    = data_plot,
+    mapping = aes(x = -Inf, y = -Inf, label = skewness),
+    hjust   = 0,
+    vjust   = 0
+  )
+  
+
+
+# ggplot() + 
+#   geom_col(data =ref, aes(x =age_bin, y = density), position = "identity", fill = "yellow", alpha = 0.5)+
+#   geom_col(data = data_plot ,aes(x= age_bin, y= sample_count), position = "identity")+
+#   
+#   scale_y_continuous("Sample Counts", sec.axis = sec_axis( ~ .  * sum, name = "Temperature")) +
+#   
+#   theme_minimal()+
+#   facet_wrap(.~ IDs, scales = "free_y")
+
+data_plot %>% 
+  ggplot(aes(x= age_bin, y= sample_count))+
+  geom_col()+
+  theme_minimal()+
+  facet_wrap(.~ IDs, scales = "free_y")
+
+
+
+
+gnomad_decoded2 <- gnomad_decoded1 %>% 
+  pivot_wider(names_from = "age_bin", values_from = "sample_count")
 
 ################################################################################# IV ### Finishing extracting variables on the subsets of variant selected
-gnomad_decoded2 <- gnomad_decoded1 %>% 
+gnomad_decoded3 <- gnomad_decoded2 %>% 
   # Generate allele count variables from the INFO var
   mutate(alt_allele_count = str_match(INFO, "AC=(.*?);")[,2]) %>%
   mutate(alt_allele_count_afr_female = str_match(INFO, "AC_female=(.*?);")[,2]) %>%
@@ -157,201 +327,9 @@ gnomad_decoded2 <- gnomad_decoded1 %>%
   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_amr_male=(.*?);")[,2]) %>%
   
   # "Total number of alleles in samples in the non_cancer subset, before removing low-confidence genotypes">
-  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2])
   
-  # Consequence annotations from Ensembl VEP
-  # Format: Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|
-  # cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|ALLELE_NUM|DISTANCE|
-  # STRAND|FLAGS|VARIANT_CLASS|MINIMISED|SYMBOL_SOURCE|HGNC_ID|CANONICAL|TSL|APPRIS|CCDS|ENSP|SWISSPROT|
-  # TREMBL|UNIPARC|GENE_PHENO|SIFT|PolyPhen|DOMAINS|HGVS_OFFSET|GMAF|AFR_MAF|AMR_MAF|EAS_MAF|EUR_MAF|
-  # SAS_MAF|AA_MAF|EA_MAF|ExAC_MAF|ExAC_Adj_MAF|ExAC_AFR_MAF|ExAC_AMR_MAF|ExAC_EAS_MAF|ExAC_FIN_MAF|
-  # ExAC_NFE_MAF|ExAC_OTH_MAF|ExAC_SAS_MAF|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|
-  # HIGH_INF_POS|MOTIF_SCORE_CHANGE|LoF|LoF_filter|LoF_flags|LoF_info
-  mutate(ens_vep = str_match(INFO, ";vep=(.*?)$")[,2]) #%>% 
-  # separate(col = ens_vep, paste("ens_vep", 1:67, sep=""), 
-  #          sep = "\\|", remove = F, extra = "warn", fill = "right")
-
-# toc() # 2 sec elapsed
-# toc() # 4.437 sec elapsed 21 hrs for all rows
-
-str_count("Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|
-  cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|ALLELE_NUM|DISTANCE|
-  STRAND|FLAGS|VARIANT_CLASS|MINIMISED|SYMBOL_SOURCE|HGNC_ID|CANONICAL|TSL|APPRIS|CCDS|ENSP|SWISSPROT|
-  TREMBL|UNIPARC|GENE_PHENO|SIFT|PolyPhen|DOMAINS|HGVS_OFFSET|GMAF|AFR_MAF|AMR_MAF|EAS_MAF|EUR_MAF|
-  SAS_MAF|AA_MAF|EA_MAF|ExAC_MAF|ExAC_Adj_MAF|ExAC_AFR_MAF|ExAC_AMR_MAF|ExAC_EAS_MAF|ExAC_FIN_MAF|
-  ExAC_NFE_MAF|ExAC_OTH_MAF|ExAC_SAS_MAF|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|
-  HIGH_INF_POS|MOTIF_SCORE_CHANGE|LoF|LoF_filter|LoF_flags|LoF_info", "\\|")
-
-gnomad_decoded1 <- gnomad_decoded %>% 
-  group_by(ID) %>% 
-  pivot_longer(cols = c("<30", "30-35","35-40","40-45","45-50","50-55","55-60",
-                        "60-65","65-70","70-75","75-80", ">80"), 
-               names_to = "age_bin", values_to = "count_in_bin") %>% 
-  ungroup() %>% 
-  mutate(age_bin = factor(age_bin, 
-                          levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
-                                     "55-60","60-65","65-70","70-75","75-80", ">80"))) %>% 
-  mutate(left = case_when(age_bin == "<30" ~ 0,
-                          age_bin == "30-35" ~ 30,
-                          age_bin == "35-40" ~ 35,
-                          age_bin == "40-45" ~ 40,
-                          age_bin == "45-50" ~ 45,
-                          age_bin == "50-55" ~ 50,
-                          age_bin == "55-60" ~ 55,
-                          age_bin == "60-65" ~ 60,
-                          age_bin == "65-70" ~ 65,
-                          age_bin == "70-75" ~ 70,
-                          age_bin == "75-80" ~ 75,
-                          TRUE ~ 80
-    )) %>% 
-  mutate(right = case_when(age_bin == "<30" ~ 30,
-                           age_bin == "30-35" ~ 35,
-                           age_bin == "35-40" ~ 40,
-                           age_bin == "40-45" ~ 45,
-                           age_bin == "45-50" ~ 50,
-                           age_bin == "50-55" ~ 55,
-                           age_bin == "55-60" ~ 60,
-                           age_bin == "60-65" ~ 65,
-                           age_bin == "65-70" ~ 70,
-                           age_bin == "70-75" ~ 75,
-                           age_bin == "75-80" ~ 80,
-                           TRUE ~ 90
-    )) %>%
-  mutate(center = case_when(age_bin == "<30" ~ 15,
-                           age_bin == "30-35" ~ 32.5,
-                           age_bin == "35-40" ~ 47.5,
-                           age_bin == "40-45" ~ 42.5,
-                           age_bin == "45-50" ~ 57.5,
-                           age_bin == "50-55" ~ 52.5,
-                           age_bin == "55-60" ~ 67.5,
-                           age_bin == "60-65" ~ 62.5,
-                           age_bin == "65-70" ~ 77.5,
-                           age_bin == "70-75" ~ 72.5,
-                           age_bin == "75-80" ~ 87.5,
-                           TRUE ~ 90
-  ))
-  # filter(count_in_bin != 0) #%>% 
-  # select(ID, age_bin, count_in_bin, everything())
-
-gnomad_decoded1 %>% 
-  ggplot(aes(x= age_bin, y= count_in_bin))+
-  geom_col()+
-  theme_minimal()
-
-gnomad_decoded1 %>% 
-  ggplot(aes(x= age_bin, y= count_in_bin))+
-  geom_col()+
-  theme_minimal()+
-  facet_wrap(.~ ID, scales = "free_y")
-
-gnomad_decoded1 %>% 
-  ggplot(aes(x= center, y= count_in_bin))+
-  geom_density(stat = "identity")+
-  theme_minimal()
-
-
-gnomad_decoded1 %>% 
-  ggplot(aes(x = age_bin, y = count_in_bin)) + 
-  geom_bar(stat = "identity")+
-  theme_minimal()+
-  facet_wrap(.~ID)
-
-p2 <- ggplot(gnomad_decoded1, aes(x = center, y = count_in_bin)) + stat_smooth(aes(y = count_in_bin,x = center), method = "gam",se = FALSE,formula = y ~ s(x, k = 7))
-p2
-
-ggplot_build(p2)
-ggplot_build(p2)$plot$data
-ggplot_build(p2)$plot$layers
-ggplot_build(p2)$plot$mapping
-ggplot_build(p2)$plot$coordinates
-layer_data(p2, 1)
-
-p2_build = ggplot_build(p2)
-p2_fill <- data_frame(
-  x = p2_build$data[[1]]$x,
-  y = p2_build$data[[1]]$y#,
-  # group = factor(p2_build$data[[1]]$group, levels = c(1,2), labels = c("apples","bananas"))
-  )
-
-ggplot(gnomad_decoded1, aes(left, count_in_bin))+
-  stat_smooth(aes(y = count_in_bin,x = left), method = "gam",se = FALSE, formula = y ~ s(x, k = 7))+
-  # geom_area(data = p2_fill[p2_fill$group == "apples", ], 
-  #           aes(x=x, y=y), fill =  "#F8766D", alpha = 0.2, inherit.aes = F)+
-  geom_area(data = p2_fill, #[p2_fill$group == "bananas", ], 
-            aes(x=x, y=y), fill = "#00BFC4", alpha = 0.2, inherit.aes = F)+
-  theme_classic()
-
-
-
-
-
-
-
-
-
-
-
-
-#################################################################
-############# ____________Infering data____________ #############
-#################################################################
-# https://www.r-bloggers.com/2019/08/inferring-a-continuous-distribution-from-binned-data-by-ellis2013nz/
-
-gnomad_decoded1 %>% 
-  filter(count_in_bin != 0) %>% 
-  group_by(ID, age_bin) %>%
-  summarise(freq = n())
-
-volumes_bin <- dplyr::select(gnomad_decoded1, left, right) %>% 
-  as.data.frame()
-
-library(fitdistrplus)
-fitted_distribution_gamma <- fitdistcens(volumes_bin, "gamma")
-# overall fit:
-summary(fitted_distribution_gamma)
-# estimated mean
-fitted_distribution_gamma$estimate["shape"] / fitted_distribution_gamma$estimate["rate"]
-
-ggplot(volumes) +
-  geom_density(aes(x = volume)) +
-  stat_function(fun = dgamma, args = fitted_distribution_gamma$estimate, colour = "blue") +
-  annotate("text", x = 700, y = 0.0027, label = "Blue line shows modelled distribution; black is density of the actual data.")
-
-# bin_based_mean (358 - very wrong)
-gnomad_decoded1 %>%
-  mutate(mid = (left + replace_na(right, 2000)) / 2) %>%
-  summarise(crude_mean = mean(mid)) %>%
-  pull(crude_mean)
-#################################################################
-
-
-
-#################################################################
-############# ____________creating bins____________ #############
-#################################################################
-library(ggplot2)
-qplot(gnomad_decoded1, data=cbind(age_bin,count_in_bin), weight=count_in_bin, geom="histogram")
-
-gnomad_decoded1 %>% qplot(aes(x= age_bin, y= count_in_bin, weight=count_in_bin), geom="histogram")
-
-gnomad_decoded1 %>% 
-  ggplot(aes(x = age_bin, y = count_in_bin, fill = ID)) + 
-  geom_bar(stat = "identity")+
-  theme_minimal()+
-  facet_wrap(.~ID)
-
-gnomad_decoded1$binRange <- str_extract(gnomad_decoded1$age_bin, "[0-9]-*[0-9]+")
-
-# split the data using the , into to columns:
-# one for the start-point and one for the end-point
-library(splitstackshape)
-df <- cSplit(gnomad_decoded1, "binRange")
-
-# plot it, you actually dont need the second column
-ggplot(df, aes(x = binRange_1, y = count_in_bin, width = 0.025)) +
-  geom_bar(stat = "identity"#, breaks=seq(0,0.125, by=0.025)
-           )
-#################################################################
+  
 
 
 
