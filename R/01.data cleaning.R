@@ -60,8 +60,50 @@ gnomad_decoded <- gnomad %>%
                names_to = "age_bin", values_to = "sample_count") %>% 
   mutate(age_bin = factor(age_bin, 
                           levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
-                                     "55-60","60-65","65-70","70-75","75-80", ">80"))) %>% 
-  mutate(sample_density = sample_count / nbr_individuals)
+                                     "55-60","60-65","65-70","70-75","75-80", ">80"))) %>%
+  mutate(center = case_when(age_bin == "<30" ~ 22.5,
+                            age_bin == "30-35" ~ 32.5,
+                            age_bin == "35-40" ~ 47.5,
+                            age_bin == "40-45" ~ 42.5,
+                            age_bin == "45-50" ~ 57.5,
+                            age_bin == "50-55" ~ 52.5,
+                            age_bin == "55-60" ~ 67.5,
+                            age_bin == "60-65" ~ 62.5,
+                            age_bin == "65-70" ~ 77.5,
+                            age_bin == "70-75" ~ 72.5,
+                            age_bin == "75-80" ~ 87.5,
+                            TRUE ~ 90
+  )) %>%
+  mutate(left = case_when(age_bin == "<30" ~ 15,
+                          age_bin == "30-35" ~ 30,
+                          age_bin == "35-40" ~ 35,
+                          age_bin == "40-45" ~ 40,
+                          age_bin == "45-50" ~ 45,
+                          age_bin == "50-55" ~ 50,
+                          age_bin == "55-60" ~ 55,
+                          age_bin == "60-65" ~ 60,
+                          age_bin == "65-70" ~ 65,
+                          age_bin == "70-75" ~ 70,
+                          age_bin == "75-80" ~ 75,
+                          TRUE ~ 80
+  )) %>%
+  mutate(right = case_when(age_bin == "<30" ~ 30,
+                           age_bin == "30-35" ~ 35,
+                           age_bin == "35-40" ~ 40,
+                           age_bin == "40-45" ~ 45,
+                           age_bin == "45-50" ~ 50,
+                           age_bin == "50-55" ~ 55,
+                           age_bin == "55-60" ~ 60,
+                           age_bin == "60-65" ~ 65,
+                           age_bin == "65-70" ~ 70,
+                           age_bin == "70-75" ~ 75,
+                           age_bin == "75-80" ~ 80,
+                           TRUE ~ 100
+  )) %>%
+  mutate(sample_frequency = sample_count / nbr_individuals) %>% 
+  mutate(sample_density = sample_count / (right - left)) %>% 
+  mutate(sample_density0 = (sample_count / (right - left)) / nbr_individuals) %>% 
+  mutate(sample_density1 = sample_frequency / (right - left))
 
 
 ################################################################################# III ### Goodness of Fit / Skewness : Select variant NOT consistent with the reference distribution 
@@ -141,7 +183,7 @@ gnomad_decoded4 <- gnomad_decoded3 %>%
 
 data_plot <- gnomad_decoded4 %>% 
   distinct(IDs, age_bin, .keep_all = TRUE) %>% 
-  select("IDs", "nbr_individuals", "age_bin", "sample_count", sample_density, skewness) %>% 
+  select("IDs", "nbr_individuals", "age_bin", "sample_count", sample_frequency, skewness) %>% 
   mutate(age_bin = factor(age_bin, 
                           levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
                                      "55-60","60-65","65-70","70-75","75-80", ">80")))
@@ -218,12 +260,12 @@ ggplot(data = ref, aes(x =age_bin, y = density))+
 
 ggplot() + 
   geom_col(data =ref, aes(x =age_bin, y = density), position = "identity", fill = "yellow", alpha = 0.5)+
-  geom_col(data = data_plot ,aes(x= age_bin, y= sample_density), position = "identity", alpha = 0.5)+
+  geom_col(data = data_plot ,aes(x= age_bin, y= sample_frequency), position = "identity", alpha = 0.5)+
   theme_minimal()
 
 
 ggplot() + 
-  geom_col(data = data_plot ,aes(x= age_bin, y= sample_density), position = "identity", alpha = 0.6)+
+  geom_col(data = data_plot ,aes(x= age_bin, y= sample_frequency), position = "identity", alpha = 0.6)+
   theme_minimal()+
   facet_wrap(.~ IDs, scales = "free_y")+
   geom_col(data =ref, aes(x =age_bin, y = density), position = "identity", fill = "yellow", alpha = 0.5)+ 

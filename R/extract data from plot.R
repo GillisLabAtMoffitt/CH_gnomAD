@@ -1,4 +1,135 @@
+data_plot <- gnomad_decoded %>% 
+  distinct(IDs, age_bin, .keep_all = TRUE) %>% 
+  filter(IDs == "2-25234321-G-A" | IDs == "All individuals") %>% 
+  select("IDs", "nbr_individuals", "age_bin", "sample_count",starts_with("sample_density"), sample_frequency, center)
 
+data_plot %>% 
+  ggplot(aes(x = age_bin, y= sample_count, fill= IDs))+
+  geom_bar(stat = "identity", alpha= 0.5)
+data_plot %>% 
+  ggplot(aes(x = age_bin, y= sample_density, fill= IDs))+
+  geom_bar(stat = "identity", alpha= 0.5)
+data_plot %>% 
+  ggplot(aes(x = age_bin, y= sample_density0, fill= IDs))+
+  geom_bar(stat = "identity", alpha= 0.5)
+data_plot %>% 
+  ggplot(aes(x = age_bin, y= sample_density1, fill= IDs))+
+  geom_bar(stat = "identity", alpha= 0.5)
+data_plot %>% 
+  ggplot(aes(x = age_bin, y= sample_frequency, fill= IDs))+
+  geom_bar(stat = "identity", alpha= 0.5)
+
+data_plot %>% 
+  ggplot(aes(x = center, y= sample_frequency, color= IDs))+
+  geom_smooth(alpha= 0.5, se = FALSE, method = "loess", span = 0.6)
+
+p1 <- data_plot %>% 
+  ggplot(aes(x = center, y= sample_frequency, color= IDs))+
+  geom_smooth(alpha= 0.5, se = FALSE, method = "loess", span = 0.6)
+ggplot_build(p1)
+
+p1_1 <- layer_data(p1, 1)
+p1_1
+
+t.test(p1_1 %>% filter(group == 1) %>% select(y), p1_1 %>% filter(group == 2) %>% select(y))
+
+
+
+
+
+########################################################
+p1 <- data_plot %>% 
+  ggplot(aes(x = center, y = sample_density)) + 
+  geom_bar(stat = "identity")+
+  theme_minimal()
+p1
+
+p1_1 <- layer_data(p1, 1)
+p1_1
+
+p1+ geom_smooth(data=p1_1, aes(x= x, y= ymax), se = FALSE, method = "loess", span = 0.6)
+p1+ geom_density(data=p1_1, aes(x= xmin, y= ymax), stat = "identity")
+
+p3<- p1+ geom_smooth(data=p1_1, aes(x= x, y= ymax), se = FALSE, method = "loess", span = 0.6)
+layer_data(p3, 1) # had the same data
+
+ref <- tibble(age_bin = c("<30", "30-35","35-40","40-45","45-50","50-55","55-60",
+                          "60-65","65-70","70-75","75-80", ">80"),
+              y = c(2547, 3423, 4546, 8487, 10355, 12693, 11933, 10534, 8882, 5991, 4136, 1935)) %>% 
+  mutate(age_bin = factor(age_bin, 
+                          levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
+                                     "55-60","60-65","65-70","70-75","75-80", ">80"))) %>% 
+  mutate(center = case_when(age_bin == "<30" ~ 15,
+                            age_bin == "30-35" ~ 32.5,
+                            age_bin == "35-40" ~ 47.5,
+                            age_bin == "40-45" ~ 42.5,
+                            age_bin == "45-50" ~ 57.5,
+                            age_bin == "50-55" ~ 52.5,
+                            age_bin == "55-60" ~ 67.5,
+                            age_bin == "60-65" ~ 62.5,
+                            age_bin == "65-70" ~ 77.5,
+                            age_bin == "70-75" ~ 72.5,
+                            age_bin == "75-80" ~ 87.5,
+                            TRUE ~ 90
+  )) %>% 
+  mutate(sum = sum(y)) %>% 
+  mutate(density = y / sum)
+
+ggplot() + 
+  geom_col(data = data_plot ,aes(x= center, y= sample_count), 
+           position = "identity", 
+           fill = "darkblue", 
+           alpha = 0.6)+
+  geom_smooth(data = p1_1 ,aes(x= x, y= ymax), 
+              stat = "identity", 
+              color = "darkblue", 
+              alpha = 0.6)+
+  theme_minimal()+
+  facet_wrap(.~ IDs, ncol = 3, scales = "free_y")+
+  geom_smooth(data =ref, aes(x =center, y = density), stat = "identity", color = "yellow", alpha = 0.5)
+
+
+ggplot() + geom_smooth(data=p1_1, aes(x= x, y= ymax), se = FALSE, method = "loess", span = 0.6)+
+  geom_smooth(data =ref, aes(x =center, y = density), color = "yellow", alpha = 0.5, se = FALSE, method = "loess", span = 0.6)
+p5 <- ggplot() + geom_smooth(data=p1_1, aes(x= x, y= ymax), se = FALSE, method = "loess", span = 0.6)
+p6 <- ggplot() + geom_smooth(data =ref, aes(x =center, y = density), color = "yellow", alpha = 0.5, se = FALSE, method = "loess", span = 0.6)
+p5_1 <- layer_data(p5, 1)
+p6_1 <- layer_data(p6, 1)
+t.test(p5_1$y, p6_1$y) ################### Here
+
+
+
+
+
+
+
+
+
+#############
+
+  
+p1 <- data_plot %>% 
+  ggplot(aes(x = age_bin, y = sample_count)) + 
+  geom_bar(stat = "identity")+
+  theme_minimal()
+p1
+
+ggplot_build(p1)
+ggplot_build(p1)$plot$data
+ggplot_build(p1)$plot$layers
+ggplot_build(p1)$plot$mapping
+ggplot_build(p1)$plot$coordinates
+
+p1_1 <- layer_data(p1, 1)
+
+p1_1 %>% 
+  ggplot(aes(x= xmin, y= ymax))+
+  geom_smooth()+
+  geom_bar(aes(p1), stat = "identity")
+
+p1+ geom_smooth(data=p1_1, aes(x= xmin, y= ymax))
+p1+ geom_density(data=p1_1, aes(x= xmin, y= ymax), stat = "identity")
+###########
 gnomad_decoded1 %>% 
   ggplot(aes(x= center, y= count_in_bin))+
   geom_density(stat = "identity")+
