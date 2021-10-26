@@ -130,7 +130,8 @@ gnomad_decoded <- gnomad_decoded %>%
                             age_bin == "75-80" ~ 87.5,
                             TRUE ~ 90
   )) %>% 
-  mutate(sample_density = sample_count / nbr_individuals)
+  mutate(sample_density = sample_count / nbr_individuals) %>%
+  mutate(sample_frequency = sample_count / nbr_individuals)
 ```
 We have data on `r gnomad_decoded %>% distinct(IDs) %>% nrow` DNMT3A variants.  
 <br>
@@ -139,9 +140,10 @@ The dictionary gives the "reference" distribution =  overall distribution of sam
 <br>
 
 Comparing distribution of each variant with the reference:  
-We probably need to talk to a statistician - maybe Brooke -, I went to the bio-statistic drop off happening on Tuesdays to ask how to do to compare 2 distributions. Jose said to do a chi-square.  
-First, using a chi-square test and kolmogorov smirnov test (I added this one on top - found that it is a good one for distribution - but everything comes up as significantly different `r emo::ji("rolling_on_the_floor_laughing")`), I selected the variants with a distribution significantly different to the reference (p ≤ 0.05).  
-Then with the skewness test, I wanted to keep the variant as long as its distribution is shifted to the right - older age (skewness test should be > 0 - but not working great as you will see on the plots at the end) so working on that.
+I kept the results of the chi-square test in case we use it later but I didn't remove any variant
+I added a t-test.
+
+Then with the skewness test, I wanted to keep the variant as long as its distribution is shifted to the right - older age (skewness test should be > 0 - but not working great as you will see on the plots at the end) so working on that. -- Will now work on it after creating the t-test.
 ```{r}
 goodness_fit1 <- data.frame(matrix(nrow=1, ncol=0)) 
 goodness_fit2 <- data.frame(matrix(nrow=1, ncol=0)) 
@@ -167,13 +169,43 @@ df <- bind_cols(goodness_fit1, goodness_fit2, skew) %>% `colnames<-`(c("chisq", 
 df$IDs <- c(unique(gnomad_decoded$IDs))
 
 # Bind the distribution characteristic values
-gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs") %>% 
+gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs") #%>% 
   # filter the significatant different
-  filter((chisq > 0.05 | kolmogorov > 0.05) )
+  # filter((chisq > 0.05 | kolmogorov > 0.05) )
+
+
+test_mean <- data.frame(matrix(nrow=1, ncol=0)) 
+
+for(i in unique(gnomad_decoded$IDs)) {
+  
+  All <- gnomad_decoded %>% filter(IDs == "All individuals") %>% mutate(IDs = "Reference")
+  data_plot <- gnomad_decoded %>% 
+    filter(IDs == i) %>% 
+    bind_rows(., All) %>% 
+    select("IDs", "age_bin", sample_frequency, center)
+  
+  p <- data_plot %>% 
+    ggplot(aes(x = center, y= sample_frequency, color= IDs))+
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess", span = 0.6)
+  p_ <- layer_data(p, 1)
+  p_
+  
+  result <- t.test(p_ %>% filter(group == 1) %>% select(y), p_ %>% filter(group == 2) %>% select(y))$p.value
+  test_mean <- rbind(test_mean, result)
+
+}
+test_mean <- test_mean %>% `colnames<-`(c("t_test")) %>% 
+  mutate(IDs = c(unique(gnomad_decoded$IDs)))
+
+# Bind the distribution characteristic values
+gnomad_decoded1 <- full_join(gnomad_decoded1, test_mean, by = "IDs") %>%
+  # filter the significatant different
+  filter(t_test > 0)
+
 ```
 
-After this cleaning, the number of DNMT3A variants is `r gnomad_decoded1 %>% distinct(IDs) %>% nrow`. We need to be more selective...  
-But I also think we can reduce their numbers by other means. For example,  
+After this cleaning, the number of DNMT3A variants is `r gnomad_decoded1 %>% distinct(IDs) %>% nrow`.  
+<!-- But I also think we can reduce their numbers by other means. For example,   -->
 
 I extracted the VEP annotations data from `INFO`.  
 But you can see that in VEP, we have multiple Variant Effect Predictor separated by a comma.
@@ -185,16 +217,16 @@ head(gnomad_decoded2 %>% select(IDs, ens_vep))[1:3,]
 ```
 <br>
 
-Here an example on gnomAD browser
+<!-- Here an example on gnomAD browser -->
 ```{r, out.width='100%'}
-knitr::include_graphics('/Users/colinccm/Documents/GitHub/Gillis/CH_gnomAD/variant effect predictor.jpg')
+# knitr::include_graphics('/Users/colinccm/Documents/GitHub/Gillis/CH_gnomAD/variant effect predictor.jpg')
 ```
 <br>
 
 
 So I made 1 row for each Variant Effect Predictor.
 ```{r}
-gnomad_decoded2 <- gnomad_decoded2 %>% 
+gnomad_decoded2a <- gnomad_decoded2 %>% 
   separate(col = ens_vep, paste("ens_vep", 1:25, sep=""),
            sep = ",", remove = T, extra = "warn", fill = "right") %>% 
   keep(~!all(is.na(.))) %>% 
@@ -243,160 +275,189 @@ head(gnomad_decoded3 %>% select(IDs, "Allele", "Consequence", "IMPACT", "SYMBOL"
   HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info"))
 ```
 
-What are the ones you are interested in (I can keep them all of course) and how can I filter the variant we want.  
-For example, there is multiple type of `Consequence` that we could clean but I don't want to make any mistake.
+<!-- What are the ones you are interested in (I can keep them all of course) and how can I filter the variant we want.   -->
+There is multiple type of `Consequence`.
 ```{r}
 table(gnomad_decoded3$Consequence)
 
 # table(gnomad_decoded3$SYMBOL)
 
 gnomad_decoded4 <- gnomad_decoded3 %>% 
-  filter(!str_detect(Consequence, "3_prime_UTR_variant|5_prime_UTR_variant"), SYMBOL == "DNMT3A")
+  filter(!str_detect(Consequence, "3_prime_UTR_variant|5_prime_UTR_variant") #| IDs == "All individuals"#, SYMBOL == "DNMT3A"
+         )
 ```
-I only selected the variants not in 3 and 5' for now. Let me know if I am correct and if I can be more selective.  
-But we have the same thing for HGVSc, HGVSp (I think we only keep the HGVSp...)
+I only selected the variants not in 3 and 5' for now. I am keeping everything else as you said.  
+<!-- Let me know if I am correct and if I can be more selective.   -->
+<!-- But we have the same thing for HGVSc, HGVSp (I think we only keep the HGVSp...) -->
 
 # 2. Distribution plots
 
-</div>
-</div>
+I found a way to create a continuous data from the binned data without assuming for a type of distribution.  
+I first plotted a `geom_smooth()` plot which fit the best the binned data and used the `ggplot_build()` function to get the data set that ggplot used to plot it.  
+I want to find a way to don't have < 0 value in the smooth line. Let me know if you like this way of getting the continuous data and I will work on that.  
+With this continuous data, I was able to do a t-test.  
+`r emo::ji("question_mark")` Question : You talked about doing a bootstrap t-test but it looks like I am able to do it with the common `t.test()` function. Should I still try a bootstrap?
 
-In purple is the distribution of each variant. In yellow is the reference distribution. I wrote the skewness value at the bottom left.
+<!-- In purple is the distribution of each variant. In yellow is the reference distribution. I wrote the skewness value at the bottom left. -->
 
-I kept the variant for which the chi square or KS test are significant but you can see that KS is definitely not the best one to choose and the chi square is not what I expected to see...
-I am doing some research on that but let me know what you think.
-```{r, fig.height= 40, fig.width=12}
-data_plot <- gnomad_decoded4 %>% 
-  distinct(IDs, age_bin, .keep_all = TRUE) %>% 
-  select("IDs", "nbr_individuals", "age_bin", "sample_count", 
-         sample_density, 
-         skewness, chisq, kolmogorov) %>% 
-  mutate(age_bin = factor(age_bin, 
-                          levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
-                                     "55-60","60-65","65-70","70-75","75-80", ">80")))
+```{r, fig.height= 3, fig.width=7}
+data_p <- gnomad_decoded4 %>% 
+  bind_rows(., gnomad_decoded1 %>% filter(IDs == "All individuals"))
 
-ref <- tibble(age_bin = c("<30", "30-35","35-40","40-45","45-50","50-55","55-60",
-                          "60-65","65-70","70-75","75-80", ">80"),
-              y = c(2547, 3423, 4546, 8487, 10355, 12693, 11933, 10534, 8882, 5991, 4136, 1935)) %>% 
-  mutate(age_bin = factor(age_bin, 
-                          levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
-                                     "55-60","60-65","65-70","70-75","75-80", ">80"))) %>% 
-  mutate(sum = sum(y)) %>% 
-  mutate(density = y / sum)
+for(i in unique(data_p$IDs)) {
+  
+  All <- data_p %>% filter(IDs == "All individuals") %>% mutate(IDs = "Reference")
+  data_plot <- data_p %>% 
+    filter(IDs == i)# %>% 
+    # bind_rows(., All)
+  
+  p <- data_plot %>% 
+    ggplot(aes(x = center, y= sample_frequency, color= IDs))+
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess", span = 0.6)+ 
+    # geom_text(
+    #   data    = data_plot,
+    #   mapping = aes(x = -Inf, y = -Inf, label = paste0("skewness=", round(skewness, 2))),
+    #   hjust   = 0,
+    #   vjust   = 0
+    # )+
+    # geom_text(
+    #   data    = data_plot,
+    #   mapping = aes(x = -Inf, y = -Inf, label = paste0("chisq=", round(chisq, 2))),
+    #   hjust   = 0,
+    #   vjust   = -5
+    # )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("t test = ", round(t_test, 3))),
+      hjust   = 0,
+      vjust   = -9
+    )+
+    geom_smooth(data = All, aes(x = center, y= sample_frequency, color= IDs), 
+                alpha= 0.5, se = FALSE, method = "loess", span = 0.6)+ 
+    geom_col(data = data_plot ,aes(x= center, y= sample_frequency),
+             position = "identity",
+             fill = "red",
+             alpha = 0.1)+
+    theme_minimal()
+  print(p)
 
-ggplot() + 
-  geom_col(data = data_plot ,aes(x= age_bin, y= sample_density), 
-           position = "identity", 
-           fill = "darkblue", 
-           alpha = 0.6)+
-  theme_minimal()+
-  facet_wrap(.~ IDs, ncol = 3, scales = "free_y")+
-  geom_col(data =ref, aes(x =age_bin, y = density), position = "identity", fill = "yellow", alpha = 0.5)+ 
-  geom_text(
-    data    = data_plot,
-    mapping = aes(x = -Inf, y = -Inf, label = paste0("skewness=", round(skewness, 2))),
-    hjust   = 0,
-    vjust   = 0
-  )+ 
-  geom_text(
-    data    = data_plot,
-    mapping = aes(x = -Inf, y = -Inf, label = paste0("chisq=", round(chisq, 2))),
-    hjust   = 0,
-    vjust   = -5
-  )+ 
-  geom_text(
-    data    = data_plot,
-    mapping = aes(x = -Inf, y = -Inf, label = paste0("KS=", round(kolmogorov, 7))),
-    hjust   = 0,
-    vjust   = -9
-  )
+}
+
+# ggplot() + 
+#   geom_col(data = data_plot ,aes(x= age_bin, y= sample_density), 
+#            position = "identity", 
+#            fill = "darkblue", 
+#            alpha = 0.6)+
+#   theme_minimal()+
+#   facet_wrap(.~ IDs, ncol = 3, scales = "free_y")+
+#   geom_col(data =ref, aes(x =age_bin, y = density), position = "identity", fill = "yellow", alpha = 0.5)+ 
+#   geom_text(
+#     data    = data_plot,
+#     mapping = aes(x = -Inf, y = -Inf, label = paste0("skewness=", round(skewness, 2))),
+#     hjust   = 0,
+#     vjust   = 0
+#   )+ 
+#   geom_text(
+#     data    = data_plot,
+#     mapping = aes(x = -Inf, y = -Inf, label = paste0("chisq=", round(chisq, 2))),
+#     hjust   = 0,
+#     vjust   = -5
+#   )+ 
+#   geom_text(
+#     data    = data_plot,
+#     mapping = aes(x = -Inf, y = -Inf, label = paste0("KS=", round(kolmogorov, 7))),
+#     hjust   = 0,
+#     vjust   = -9
+#   )
 ```
 
+# Conclusion
+
+T-test is working pretty well. I need to add a step for the bimodal curve. I will work on that next.  
+Will also work on the skewness test.  
 Note: I could also calculate the kurtosis to look at how "pointy" the distribution is...
 
-I went to the bio stat drop off again but Ram wasn't able to clearly say why the chi square test was not giving the expected result and he didn't really know the skewness test. 
-
 <br>
 <br>
 
 
-# 3. Extract allele count and frequency variables on the selected variants
+<!-- # 3. Extract allele count and frequency variables on the selected variants -->
 ```{r}
-gnomad_decoded5 <- gnomad_decoded4 %>% 
-  # Generate allele count variables from the INFO var
-  mutate(alt_allele_count = str_match(INFO, "AC=(.*?);")[,2]) %>%
-  mutate(alt_allele_count_afr_female = str_match(INFO, "AC_female=(.*?);")[,2]) %>%
-  mutate(alt_allele_count_male = str_match(INFO, "AC_male=(.*?);")[,2]) %>%
-  
-  mutate(alt_allele_count_afr = str_match(INFO, "AC_afr=(.*?);")[,2]) %>%
-  mutate(alt_allele_count_afr_female = str_match(INFO, "AC_afr_female=(.*?);")[,2]) %>%
-  mutate(alt_allele_count_male = str_match(INFO, "AC_afr_male=(.*?);")[,2]) %>%
-  
-  mutate(alt_allele_count_afr = str_match(INFO, "AC_amr=(.*?);")[,2]) %>%
-  mutate(alt_allele_count_afr_female = str_match(INFO, "AC_amr_female=(.*?);")[,2]) %>%
-  mutate(alt_allele_count_male = str_match(INFO, "AC_amr_male=(.*?);")[,2]) %>%
-  
-  # Generate allele count variables from the INFO var
-  mutate(freq_allele_count = str_match(INFO, "AF=(.*?);")[,2]) %>%
-  mutate(freq_allele_count_afr_female = str_match(INFO, "AF_female=(.*?);")[,2]) %>%
-  mutate(freq_allele_count_male = str_match(INFO, "AF_male=(.*?);")[,2]) %>%
-  
-  mutate(freq_allele_count_afr = str_match(INFO, "AF_afr=(.*?);")[,2]) %>%
-  mutate(freq_allele_count_afr_female = str_match(INFO, "AF_afr_female=(.*?);")[,2]) %>%
-  mutate(freq_allele_count_male = str_match(INFO, "AF_afr_male=(.*?);")[,2]) %>%
-  
-  mutate(freq_allele_count_afr = str_match(INFO, "AF_amr=(.*?);")[,2]) %>%
-  mutate(freq_allele_count_afr_female = str_match(INFO, "AF_amr_female=(.*?);")[,2]) %>%
-  mutate(freq_allele_count_male = str_match(INFO, "AF_amr_male=(.*?);")[,2]) %>%
-  
-  # Depth of informative coverage for each sample
-  mutate(freq_allele_count = str_match(INFO, "DP=(.*?);")[,2]) %>%
-  # GQ
-  
-  
-  
-  # allele type
-  mutate(allele_type = str_match(INFO, "allele_type=(.*?);")[,2]) %>%
-  # variant type
-  mutate(variant_type = str_match(INFO, "variant_type=(.*?);")[,2]) %>%
-  # Number=A,Type=String,Description="Population with maximum AF in the controls subset">
-  mutate(controls_popmax = str_match(INFO, "controls_popmax=(.*?);")[,2]) %>%
-  
-  
-  ## NON CANCER
-  # Generate allele count variables from the INFO var
-  mutate(nc_alt_allele_count = str_match(INFO, "non_cancer_AC=(.*?);")[,2]) %>%
-  mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_female=(.*?);")[,2]) %>%
-  mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_male=(.*?);")[,2]) %>%
-  
-  mutate(nc_alt_allele_count_afr = str_match(INFO, "non_cancer_AC_afr=(.*?);")[,2]) %>%
-  mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_afr_female=(.*?);")[,2]) %>%
-  mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_afr_male=(.*?);")[,2]) %>%
-  
-  mutate(nc_alt_allele_count_afr = str_match(INFO, "non_cancer_AC_amr=(.*?);")[,2]) %>%
-  mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_amr_female=(.*?);")[,2]) %>%
-  mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_amr_male=(.*?);")[,2]) %>%
-  
-  # Generate allele count variables from the INFO var
-  mutate(nc_freq_allele_count = str_match(INFO, "non_cancer_AF=(.*?);")[,2]) %>%
-  mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_female=(.*?);")[,2]) %>%
-  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_male=(.*?);")[,2]) %>%
-  
-  mutate(nc_freq_allele_count_afr = str_match(INFO, "non_cancer_AF_afr=(.*?);")[,2]) %>%
-  mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_afr_female=(.*?);")[,2]) %>%
-  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_afr_male=(.*?);")[,2]) %>%
-  
-  mutate(nc_freq_allele_count_afr = str_match(INFO, "non_cancer_AF_amr=(.*?);")[,2]) %>%
-  mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_amr_female=(.*?);")[,2]) %>%
-  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_amr_male=(.*?);")[,2]) %>%
-  
-  # "Total number of alleles in samples in the non_cancer subset, before removing low-confidence genotypes">
-  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2])
+# gnomad_decoded5 <- gnomad_decoded4 %>% 
+#   # Generate allele count variables from the INFO var
+#   mutate(alt_allele_count = str_match(INFO, "AC=(.*?);")[,2]) %>%
+#   mutate(alt_allele_count_afr_female = str_match(INFO, "AC_female=(.*?);")[,2]) %>%
+#   mutate(alt_allele_count_male = str_match(INFO, "AC_male=(.*?);")[,2]) %>%
+#   
+#   mutate(alt_allele_count_afr = str_match(INFO, "AC_afr=(.*?);")[,2]) %>%
+#   mutate(alt_allele_count_afr_female = str_match(INFO, "AC_afr_female=(.*?);")[,2]) %>%
+#   mutate(alt_allele_count_male = str_match(INFO, "AC_afr_male=(.*?);")[,2]) %>%
+#   
+#   mutate(alt_allele_count_afr = str_match(INFO, "AC_amr=(.*?);")[,2]) %>%
+#   mutate(alt_allele_count_afr_female = str_match(INFO, "AC_amr_female=(.*?);")[,2]) %>%
+#   mutate(alt_allele_count_male = str_match(INFO, "AC_amr_male=(.*?);")[,2]) %>%
+#   
+#   # Generate allele count variables from the INFO var
+#   mutate(freq_allele_count = str_match(INFO, "AF=(.*?);")[,2]) %>%
+#   mutate(freq_allele_count_afr_female = str_match(INFO, "AF_female=(.*?);")[,2]) %>%
+#   mutate(freq_allele_count_male = str_match(INFO, "AF_male=(.*?);")[,2]) %>%
+#   
+#   mutate(freq_allele_count_afr = str_match(INFO, "AF_afr=(.*?);")[,2]) %>%
+#   mutate(freq_allele_count_afr_female = str_match(INFO, "AF_afr_female=(.*?);")[,2]) %>%
+#   mutate(freq_allele_count_male = str_match(INFO, "AF_afr_male=(.*?);")[,2]) %>%
+#   
+#   mutate(freq_allele_count_afr = str_match(INFO, "AF_amr=(.*?);")[,2]) %>%
+#   mutate(freq_allele_count_afr_female = str_match(INFO, "AF_amr_female=(.*?);")[,2]) %>%
+#   mutate(freq_allele_count_male = str_match(INFO, "AF_amr_male=(.*?);")[,2]) %>%
+#   
+#   # Depth of informative coverage for each sample
+#   mutate(freq_allele_count = str_match(INFO, "DP=(.*?);")[,2]) %>%
+#   # GQ
+#   
+#   
+#   
+#   # allele type
+#   mutate(allele_type = str_match(INFO, "allele_type=(.*?);")[,2]) %>%
+#   # variant type
+#   mutate(variant_type = str_match(INFO, "variant_type=(.*?);")[,2]) %>%
+#   # Number=A,Type=String,Description="Population with maximum AF in the controls subset">
+#   mutate(controls_popmax = str_match(INFO, "controls_popmax=(.*?);")[,2]) %>%
+#   
+#   
+#   ## NON CANCER
+#   # Generate allele count variables from the INFO var
+#   mutate(nc_alt_allele_count = str_match(INFO, "non_cancer_AC=(.*?);")[,2]) %>%
+#   mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_female=(.*?);")[,2]) %>%
+#   mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_male=(.*?);")[,2]) %>%
+#   
+#   mutate(nc_alt_allele_count_afr = str_match(INFO, "non_cancer_AC_afr=(.*?);")[,2]) %>%
+#   mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_afr_female=(.*?);")[,2]) %>%
+#   mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_afr_male=(.*?);")[,2]) %>%
+#   
+#   mutate(nc_alt_allele_count_afr = str_match(INFO, "non_cancer_AC_amr=(.*?);")[,2]) %>%
+#   mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_amr_female=(.*?);")[,2]) %>%
+#   mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_amr_male=(.*?);")[,2]) %>%
+#   
+#   # Generate allele count variables from the INFO var
+#   mutate(nc_freq_allele_count = str_match(INFO, "non_cancer_AF=(.*?);")[,2]) %>%
+#   mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_female=(.*?);")[,2]) %>%
+#   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_male=(.*?);")[,2]) %>%
+#   
+#   mutate(nc_freq_allele_count_afr = str_match(INFO, "non_cancer_AF_afr=(.*?);")[,2]) %>%
+#   mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_afr_female=(.*?);")[,2]) %>%
+#   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_afr_male=(.*?);")[,2]) %>%
+#   
+#   mutate(nc_freq_allele_count_afr = str_match(INFO, "non_cancer_AF_amr=(.*?);")[,2]) %>%
+#   mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_amr_female=(.*?);")[,2]) %>%
+#   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_amr_male=(.*?);")[,2]) %>%
+#   
+#   # "Total number of alleles in samples in the non_cancer subset, before removing low-confidence genotypes">
+#   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2])
 ```
 
 
 ```{r}
-head(gnomad_decoded5)
+# head(gnomad_decoded5)
 ```
 
 
