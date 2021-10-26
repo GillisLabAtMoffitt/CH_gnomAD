@@ -1,6 +1,6 @@
 data_plot <- gnomad_decoded %>% 
   distinct(IDs, age_bin, .keep_all = TRUE) %>% 
-  filter(IDs == "2-25234321-G-A" | IDs == "All individuals") %>% 
+  filter(IDs == "2-25234330-T-C" | IDs == "All individuals") %>% 
   select("IDs", "nbr_individuals", "age_bin", "sample_count",starts_with("sample_density"), sample_frequency, center)
 
 data_plot %>% 

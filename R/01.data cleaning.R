@@ -130,13 +130,58 @@ for(i in unique(gnomad_decoded$IDs)) {
 }
 df <- bind_cols(goodness_fit1, goodness_fit2, skew) %>% `colnames<-`(c("chisq", "kolmogorov", "skewness"))
 df$IDs <- c(unique(gnomad_decoded$IDs))
+# Bind the distribution characteristic values
+gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs")# %>%
+  # filter the significatant different
+  # filter((chisq <= 0.05 | kolmogorov <= 0.05) & skewness > 0)
 
 
+################################################################################# t-test option
+
+data_plot %>% 
+  ggplot(aes(x = age_bin, y= sample_frequency, fill= IDs))+
+  geom_bar(stat = "identity", alpha= 0.5)
+data_plot %>% 
+  ggplot(aes(x = center, y= sample_frequency, color= IDs))+
+  geom_smooth(alpha= 0.5, se = FALSE, method = "loess", span = 0.6)
+
+test_mean <- data.frame(matrix(nrow=1, ncol=0)) 
+
+for(i in unique(gnomad_decoded$IDs)) {
+  
+  All <- gnomad_decoded %>% filter(IDs == "All individuals") %>% mutate(IDs = "Reference")
+  data_plot <- gnomad_decoded %>% 
+    filter(IDs == i) %>% 
+    bind_rows(., All) %>% 
+    select("IDs", "age_bin", sample_frequency, center)
+  
+  p <- data_plot %>% 
+    ggplot(aes(x = center, y= sample_frequency, color= IDs))+
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess", span = 0.6)
+  p_ <- layer_data(p, 1)
+  p_
+  
+  # a <- bind_cols(gnomad_decoded %>% filter(IDs == i) %>% select(sample_count) , All) %>% 
+  #   `colnames<-`(c(i, "All"))
+  # result <- chisq.test(a[,i], p=a$All, rescale.p=TRUE)$p.value
+  # goodness_fit1 <- rbind(goodness_fit1, result)
+  # 
+  # result <- ks.test(a[,i], a$All)$p.value
+  # goodness_fit2 <- rbind(goodness_fit2, result)
+  
+  result <- t.test(p_ %>% filter(group == 1) %>% select(y), p_ %>% filter(group == 2) %>% select(y))$p.value
+  test_mean <- rbind(test_mean, result)
+  print(test_mean)
+}
+test_mean <- test_mean %>% `colnames<-`(c("t_test")) %>% 
+  mutate(IDs = c(unique(gnomad_decoded$IDs)))
 
 # Bind the distribution characteristic values
-gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs") %>% 
+gnomad_decoded1 <- full_join(gnomad_decoded1, test_mean, by = "IDs") %>%
   # filter the significatant different
-  filter((chisq <= 0.05 | kolmogorov <= 0.05) & skewness > 0)
+  filter(t_test > 0)
+
+
 
 
 ################################################################################# VI ### Filtering Consequence
