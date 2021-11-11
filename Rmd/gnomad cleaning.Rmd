@@ -117,17 +117,21 @@ gnomad_decoded <- gnomad_decoded %>%
   mutate(age_bin = factor(age_bin, 
                           levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
                                      "55-60","60-65","65-70","70-75","75-80", ">80"))) %>% 
-  mutate(center = case_when(age_bin == "<30" ~ 15,
+  mutate(center = case_when(age_bin == "<30" ~ 15, 
+                            # The average age at diagnosis is 8 overall (ages 0 to 19), 
+                            # 5 years old for children (aged 0 to 14), and 17 years old 
+                            # for adolescents (aged 15 to 19), while adults' average 
+                            # age for cancer diagnosis is 65
                             age_bin == "30-35" ~ 32.5,
-                            age_bin == "35-40" ~ 47.5,
+                            age_bin == "35-40" ~ 37.5,
                             age_bin == "40-45" ~ 42.5,
-                            age_bin == "45-50" ~ 57.5,
+                            age_bin == "45-50" ~ 47.5,
                             age_bin == "50-55" ~ 52.5,
-                            age_bin == "55-60" ~ 67.5,
+                            age_bin == "55-60" ~ 57.5,
                             age_bin == "60-65" ~ 62.5,
-                            age_bin == "65-70" ~ 77.5,
+                            age_bin == "65-70" ~ 67.5,
                             age_bin == "70-75" ~ 72.5,
-                            age_bin == "75-80" ~ 87.5,
+                            age_bin == "75-80" ~ 77.5,
                             TRUE ~ 90
   )) %>% 
   mutate(sample_density = sample_count / nbr_individuals) %>%
@@ -186,10 +190,17 @@ for(i in unique(gnomad_decoded$IDs)) {
   
   p <- data_plot %>% 
     ggplot(aes(x = center, y= sample_frequency, color= IDs))+
-    geom_smooth(alpha= 0.5, se = FALSE, method = "loess", span = 0.6)
+    # ggplot(aes(x = age_bin, y= sample_frequency, color= IDs))+
+    # geom_bar(stat = "identity", aes(alpha= IDs))
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+                # method.args=list(family=quasibinomial)#,
+                span = 0.6
+    )+
+    ylim(0, max(data_plot$sample_frequency))
   p_ <- layer_data(p, 1)
   p_
   
+  # result <- t.test(p_ %>% filter(alpha == 0.1) %>% select(y), p_ %>% filter(alpha == 1) %>% select(y))$p.value
   result <- t.test(p_ %>% filter(group == 1) %>% select(y), p_ %>% filter(group == 2) %>% select(y))$p.value
   test_mean <- rbind(test_mean, result)
 
@@ -303,17 +314,22 @@ With this continuous data, I was able to do a t-test.
 ```{r, fig.height= 3, fig.width=7}
 data_p <- gnomad_decoded4 %>% 
   bind_rows(., gnomad_decoded1 %>% filter(IDs == "All individuals"))
-
+n <- 0
 for(i in unique(data_p$IDs)) {
   
   All <- data_p %>% filter(IDs == "All individuals") %>% mutate(IDs = "Reference")
   data_plot <- data_p %>% 
     filter(IDs == i)# %>% 
     # bind_rows(., All)
-  
+  n <- n + 1
   p <- data_plot %>% 
     ggplot(aes(x = center, y= sample_frequency, color= IDs))+
-    geom_smooth(alpha= 0.5, se = FALSE, method = "loess", span = 0.6)+ 
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+                  # method.args=list(family=quasibinomial)#, 
+                span = 0.6
+                )+
+    labs(title = n)+
+    ylim(0, max(data_plot$sample_frequency))+
     # geom_text(
     #   data    = data_plot,
     #   mapping = aes(x = -Inf, y = -Inf, label = paste0("skewness=", round(skewness, 2))),
@@ -326,18 +342,21 @@ for(i in unique(data_p$IDs)) {
     #   hjust   = 0,
     #   vjust   = -5
     # )+
+    geom_smooth(data = All, aes(x = center, y= sample_frequency, color= IDs), 
+                alpha= 0.5, se = FALSE, method = "loess",
+                  # method.args=list(family=quasibinomial)#,
+                span = 0.6
+                )+
+    geom_col(data = data_plot ,aes(x= center, y= sample_frequency),
+             position = "identity",
+             fill = "red",
+             alpha = 0.1)+
     geom_text(
       data    = data_plot,
       mapping = aes(x = -Inf, y = -Inf, label = paste0("t test = ", round(t_test, 3))),
       hjust   = 0,
       vjust   = -9
     )+
-    geom_smooth(data = All, aes(x = center, y= sample_frequency, color= IDs), 
-                alpha= 0.5, se = FALSE, method = "loess", span = 0.6)+ 
-    geom_col(data = data_plot ,aes(x= center, y= sample_frequency),
-             position = "identity",
-             fill = "red",
-             alpha = 0.1)+
     theme_minimal()
   print(p)
 

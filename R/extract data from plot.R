@@ -1,6 +1,6 @@
 data_plot <- gnomad_decoded %>% 
   distinct(IDs, age_bin, .keep_all = TRUE) %>% 
-  filter(IDs == "2-25234330-T-C" | IDs == "All individuals") %>% 
+  filter(IDs == "2-25328714-C-G" | IDs == "All individuals") %>% 
   select("IDs", "nbr_individuals", "age_bin", "sample_count",starts_with("sample_density"), sample_frequency, center)
 
 data_plot %>% 
@@ -25,7 +25,8 @@ data_plot %>%
 
 p1 <- data_plot %>% 
   ggplot(aes(x = center, y= sample_frequency, color= IDs))+
-  geom_smooth(alpha= 0.5, se = FALSE, method = "loess", span = 0.6)
+  geom_smooth(alpha= 0.5, se = FALSE, method = "loess", span = 0.45)+
+  ylim(0, max(data_plot$sample_frequency))
 ggplot_build(p1)
 
 p1_1 <- layer_data(p1, 1)
