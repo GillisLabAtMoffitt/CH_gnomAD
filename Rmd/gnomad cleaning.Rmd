@@ -182,9 +182,14 @@ test_mean <- data.frame(matrix(nrow=1, ncol=0))
 
 for(i in unique(gnomad_decoded$IDs)) {
   
-  All <- gnomad_decoded %>% filter(IDs == "All individuals") %>% mutate(IDs = "Reference")
+  All <- gnomad_decoded %>% filter(IDs == "All individuals",
+           age_bin != "<30",
+           age_bin != ">80") %>% 
+    mutate(IDs = "Reference")
   data_plot <- gnomad_decoded %>% 
-    filter(IDs == i) %>% 
+    filter(IDs == i,
+           age_bin != "<30",
+           age_bin != ">80") %>% 
     bind_rows(., All) %>% 
     select("IDs", "age_bin", sample_frequency, center)
   
@@ -198,10 +203,13 @@ for(i in unique(gnomad_decoded$IDs)) {
     )+
     ylim(0, max(data_plot$sample_frequency))
   p_ <- layer_data(p, 1)
-  p_
+  # p_ <- p_ %>% mutate(y = replace_na(y, 0))
   
   # result <- t.test(p_ %>% filter(alpha == 0.1) %>% select(y), p_ %>% filter(alpha == 1) %>% select(y))$p.value
-  result <- t.test(p_ %>% filter(group == 1) %>% select(y), p_ %>% filter(group == 2) %>% select(y))$p.value
+  result <- t.test(p_ %>% filter(group == 1) %>% select(y), 
+                   p_ %>% filter(group == 2) %>% select(y),
+                   alternative = "greater"
+                   )$p.value
   test_mean <- rbind(test_mean, result)
 
 }
@@ -317,9 +325,13 @@ data_p <- gnomad_decoded4 %>%
 n <- 0
 for(i in unique(data_p$IDs)) {
   
-  All <- data_p %>% filter(IDs == "All individuals") %>% mutate(IDs = "Reference")
+  All <- data_p %>% filter(IDs == "All individuals",
+           age_bin != "<30",
+           age_bin != ">80") %>% mutate(IDs = "Reference")
   data_plot <- data_p %>% 
-    filter(IDs == i)# %>% 
+    filter(IDs == i,
+           age_bin != "<30",
+           age_bin != ">80")# %>% 
     # bind_rows(., All)
   n <- n + 1
   p <- data_plot %>% 
