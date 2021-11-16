@@ -182,14 +182,16 @@ test_mean <- data.frame(matrix(nrow=1, ncol=0))
 
 for(i in unique(gnomad_decoded$IDs)) {
   
-  All <- gnomad_decoded %>% filter(IDs == "All individuals",
-           age_bin != "<30",
-           age_bin != ">80") %>% 
+  All <- gnomad_decoded %>% filter(IDs == "All individuals"#,
+           # age_bin != "<30",
+           # age_bin != ">80"
+           ) %>% 
     mutate(IDs = "Reference")
   data_plot <- gnomad_decoded %>% 
-    filter(IDs == i,
-           age_bin != "<30",
-           age_bin != ">80") %>% 
+    filter(IDs == i#,
+           # age_bin != "<30",
+           # age_bin != ">80"
+           ) %>% 
     bind_rows(., All) %>% 
     select("IDs", "age_bin", sample_frequency, center)
   
@@ -202,11 +204,14 @@ for(i in unique(gnomad_decoded$IDs)) {
                 span = 0.6
     )+
     ylim(0, max(data_plot$sample_frequency))
-  p_ <- layer_data(p, 1)
-  # p_ <- p_ %>% mutate(y = replace_na(y, 0))
-  
-  # result <- t.test(p_ %>% filter(alpha == 0.1) %>% select(y), p_ %>% filter(alpha == 1) %>% select(y))$p.value
-  result <- t.test(p_ %>% filter(group == 1) %>% select(y), 
+  p_ <- layer_data(p, 1) %>% 
+    mutate(colour =  as.factor(colour))
+
+  # a <- p_ %>% filter(group == 1) %>% select(y)
+  # b <- p_ %>% filter(group == 2) %>% select(y)
+  # 
+  # result <- wilcox.test(a$y, b$y, alternative = "greater")$p.value
+  result <- t.test(p_ %>% filter(group == 1) %>% select(y),
                    p_ %>% filter(group == 2) %>% select(y),
                    alternative = "greater"
                    )$p.value
@@ -325,13 +330,15 @@ data_p <- gnomad_decoded4 %>%
 n <- 0
 for(i in unique(data_p$IDs)) {
   
-  All <- data_p %>% filter(IDs == "All individuals",
-           age_bin != "<30",
-           age_bin != ">80") %>% mutate(IDs = "Reference")
+  All <- data_p %>% filter(IDs == "All individuals"#,
+           # age_bin != "<30",
+           # age_bin != ">80"
+           ) %>% mutate(IDs = "Reference")
   data_plot <- data_p %>% 
-    filter(IDs == i,
-           age_bin != "<30",
-           age_bin != ">80")# %>% 
+    filter(IDs == i#,
+           # age_bin != "<30",
+           # age_bin != ">80"
+           )# %>% 
     # bind_rows(., All)
   n <- n + 1
   p <- data_plot %>% 
@@ -365,7 +372,7 @@ for(i in unique(data_p$IDs)) {
              alpha = 0.1)+
     geom_text(
       data    = data_plot,
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("t test = ", round(t_test, 3))),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW = ", round(t_test, 3))),
       hjust   = 0,
       vjust   = -9
     )+
