@@ -173,13 +173,9 @@ df <- bind_cols(goodness_fit1, goodness_fit2, skew) %>% `colnames<-`(c("chisq", 
 df$IDs <- c(unique(gnomad_decoded$IDs))
 
 # Bind the distribution characteristic values
-gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs") #%>% 
-  # filter the significatant different
-  # filter((chisq > 0.05 | kolmogorov > 0.05) )
-
+gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs")
 
 test_mean <- data.frame(matrix(nrow=1, ncol=0)) 
-
 for(i in unique(gnomad_decoded$IDs)) {
   
   All <- gnomad_decoded %>% filter(IDs == "All individuals",
@@ -195,25 +191,26 @@ for(i in unique(gnomad_decoded$IDs)) {
   
   p <- data_plot %>% 
     ggplot(aes(x = center, y= sample_frequency, color= IDs))+
-    # ggplot(aes(x = age_bin, y= sample_frequency, color= IDs))+
-    # geom_bar(stat = "identity", aes(alpha= IDs))
     geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
-                # method.args=list(family=quasibinomial)#,
                 span = 0.6
     )+
     ylim(0, max(data_plot$sample_frequency))
   p_ <- layer_data(p, 1)
   dat <- p_%>% filter(group == 1)
-  summary(dat$y)[4]
-  quantile(dat$y, probs = c(0.05, 0.95))[1]
-  # summary(p_%>% filter(group == 1) %>% select(y))[2]
-  extreme <- p_ %>% filter(group == 1, 
-                      (y > quantile(dat$y, probs = 0.05) & y < summary(dat$y)[4] |
-                      y > summary(dat$y)[4] & y > quantile(dat$y, probs = 0.95))
-                      )
-  take_x <- p_ %>% filter(x > min(extreme$x) & x < max(extreme$x))
+
+  # Find x for y max
+  m <- dat %>% filter(y == max(y, na.rm = TRUE))
+  extreme <- dat %>% filter(
+    x <= m$x & y > quantile(dat$y, probs = 0.05, na.rm = TRUE) |
+      x >= m$x & y < quantile(dat$y, probs = 0.95, na.rm = TRUE)
+  )
+
+  p_ <- p_ %>% filter(x >= min(extreme$x) & x <= max(extreme$x))
+  # p_ %>% 
+  #    ggplot(aes(x = x, y= y, color= as.factor(group)))+
+  #    geom_line(
+  #    )
   
-  # result <- t.test(p_ %>% filter(alpha == 0.1) %>% select(y), p_ %>% filter(alpha == 1) %>% select(y))$p.value
   result <- t.test(p_ %>% filter(group == 1) %>% select(y), 
                    p_ %>% filter(group == 2) %>% select(y),
                    alternative = "greater"
@@ -412,9 +409,7 @@ for(i in unique(data_p$IDs)) {
 
 # Conclusion
 
-T-test is working pretty well. I need to add a step for the bimodal curve. I will work on that next.  
-Will also work on the skewness test.  
-Note: I could also calculate the kurtosis to look at how "pointy" the distribution is...
+Removing the 5 and 95% sd is not a good solution as it doesn't detect variant 7, 20, ...
 
 <br>
 <br>
