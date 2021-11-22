@@ -179,7 +179,7 @@ gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs") #%>%
 
 
 test_mean <- data.frame(matrix(nrow=1, ncol=0)) 
-
+mann_w <-  data.frame(matrix(nrow=1, ncol=0)) 
 for(i in unique(gnomad_decoded$IDs)) {
   
   All <- gnomad_decoded %>% filter(IDs == "All individuals"#,
@@ -207,10 +207,11 @@ for(i in unique(gnomad_decoded$IDs)) {
   p_ <- layer_data(p, 1) %>% 
     mutate(colour =  as.factor(colour))
 
-  # a <- p_ %>% filter(group == 1) %>% select(y)
-  # b <- p_ %>% filter(group == 2) %>% select(y)
+  a <- p_ %>% filter(group == 1) %>% select(y)
+  b <- p_ %>% filter(group == 2) %>% select(y)
   # 
-  # result <- wilcox.test(a$y, b$y, alternative = "greater")$p.value
+  result <- wilcox.test(a$y, b$y, alternative = "greater")$p.value
+  mann_w <- rbind(mann_w, result)
   result <- t.test(p_ %>% filter(group == 1) %>% select(y),
                    p_ %>% filter(group == 2) %>% select(y),
                    alternative = "greater"
@@ -220,9 +221,12 @@ for(i in unique(gnomad_decoded$IDs)) {
 }
 test_mean <- test_mean %>% `colnames<-`(c("t_test")) %>% 
   mutate(IDs = c(unique(gnomad_decoded$IDs)))
+mann_w <- mann_w %>% `colnames<-`(c("mann_w")) %>% 
+  mutate(IDs = c(unique(gnomad_decoded$IDs)))
 
 # Bind the distribution characteristic values
 gnomad_decoded1 <- full_join(gnomad_decoded1, test_mean, by = "IDs") %>%
+  full_join(., mann_w, by = "IDs") %>%
   # filter the significatant different
   filter(t_test > 0)
 
@@ -355,12 +359,6 @@ for(i in unique(data_p$IDs)) {
     #   hjust   = 0,
     #   vjust   = 0
     # )+
-    # geom_text(
-    #   data    = data_plot,
-    #   mapping = aes(x = -Inf, y = -Inf, label = paste0("chisq=", round(chisq, 2))),
-    #   hjust   = 0,
-    #   vjust   = -5
-    # )+
     geom_smooth(data = All, aes(x = center, y= sample_frequency, color= IDs), 
                 alpha= 0.5, se = FALSE, method = "loess",
                   # method.args=list(family=quasibinomial)#,
@@ -375,6 +373,12 @@ for(i in unique(data_p$IDs)) {
       mapping = aes(x = -Inf, y = -Inf, label = paste0("t test = ", round(t_test, 3))),
       hjust   = 0,
       vjust   = -9
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW=", round(mann_w, 3))),
+      hjust   = 0,
+      vjust   = -5
     )+
     theme_minimal()
   print(p)
@@ -420,8 +424,8 @@ Note: I could also calculate the kurtosis to look at how "pointy" the distributi
 
 ***
 
-# Selected variants with t test ≤ 0.05
-```{r}
+# 3.Selected variants with t test ≤ 0.05
+```{r, fig.height= 3, fig.width=7}
 selected_variants <- gnomad_decoded4 %>% 
   filter(t_test <= 0.05)
 n <- 0
@@ -460,7 +464,7 @@ for(i in unique(selected_variants$IDs)) {
 }
 ```
 
-# 3. Extract allele count and frequency variables on the selected variants
+# 4. Extract allele count and frequency variables on the selected variants
 ```{r, print}
 selected_variants <- selected_variants %>%
   select(c("IDs", "ID", "INFO")) %>% 
