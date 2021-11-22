@@ -178,14 +178,16 @@ gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs")
 test_mean <- data.frame(matrix(nrow=1, ncol=0)) 
 for(i in unique(gnomad_decoded$IDs)) {
   
-  All <- gnomad_decoded %>% filter(IDs == "All individuals",
-           age_bin != "<30",
-           age_bin != ">80") %>% 
+  All <- gnomad_decoded %>% filter(IDs == "All individuals"#,
+           # age_bin != "<30",
+           # age_bin != ">80"
+           ) %>% 
     mutate(IDs = "Reference")
   data_plot <- gnomad_decoded %>% 
-    filter(IDs == i,
-           age_bin != "<30",
-           age_bin != ">80") %>% 
+    filter(IDs == i#,
+           # age_bin != "<30",
+           # age_bin != ">80"
+           ) %>% 
     bind_rows(., All) %>% 
     select("IDs", "age_bin", sample_frequency, center)
   
@@ -196,7 +198,7 @@ for(i in unique(gnomad_decoded$IDs)) {
     )+
     ylim(0, max(data_plot$sample_frequency))
   p_ <- layer_data(p, 1)
-  dat <- p_%>% filter(group == 1)
+  dat <- p_ %>% filter(group == 1)
 
   # Find x for y max
   m <- dat %>% filter(y == max(y, na.rm = TRUE))
@@ -204,7 +206,9 @@ for(i in unique(gnomad_decoded$IDs)) {
     x <= m$x & y > quantile(dat$y, probs = 0.05, na.rm = TRUE) |
       x >= m$x & y < quantile(dat$y, probs = 0.95, na.rm = TRUE)
   )
-
+  # Remove the SD
+  p_ <- p_ %>% filter(x >= min(extreme$x) & x <= max(extreme$x))
+  # OR Keep 2 or 3 - SD
   p_ <- p_ %>% filter(x >= min(extreme$x) & x <= max(extreme$x))
   # p_ %>% 
   #    ggplot(aes(x = x, y= y, color= as.factor(group)))+
@@ -330,13 +334,15 @@ data_p <- gnomad_decoded4 %>%
 n <- 0
 for(i in unique(data_p$IDs)) {
   
-  All <- data_p %>% filter(IDs == "All individuals",
-           age_bin != "<30",
-           age_bin != ">80") %>% mutate(IDs = "Reference")
+  All <- data_p %>% filter(IDs == "All individuals"#,
+           # age_bin != "<30",
+           # age_bin != ">80"
+           ) %>% mutate(IDs = "Reference")
   data_plot <- data_p %>% 
-    filter(IDs == i,
-           age_bin != "<30",
-           age_bin != ">80")# %>% 
+    filter(IDs == i#,
+           # age_bin != "<30",
+           # age_bin != ">80"
+           ) # %>% 
     # bind_rows(., All)
   n <- n + 1
   p <- data_plot %>% 
