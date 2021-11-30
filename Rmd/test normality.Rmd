@@ -183,11 +183,11 @@ library(mixtools)
 library(moments)
 
 test_mean <- data.frame(matrix(nrow=1, ncol=0)) 
-diptest_df <- data.frame(matrix(nrow=1, ncol=0)) 
-diptest_df1 <- data.frame(matrix(nrow=1, ncol=0)) 
-diptest_df2 <- data.frame(matrix(nrow=1, ncol=0)) 
 kurtosis_df <- data.frame(matrix(nrow=1, ncol=0)) 
 norm_df <- data.frame(matrix(nrow=1, ncol=0)) 
+ks_df <- data.frame(matrix(nrow=1, ncol=0)) 
+shapiro_df <- data.frame(matrix(nrow=1, ncol=0))
+# shapiro_df2 <- data.frame(matrix(nrow=1, ncol=0))
 for(i in unique(gnomad_decoded$IDs)) {
   
   All <- gnomad_decoded %>% filter(IDs == "All individuals"#,
@@ -214,31 +214,23 @@ for(i in unique(gnomad_decoded$IDs)) {
     ylim(0, max(data_plot$sample_frequency))
   p_ <- layer_data(p, 1)
   
-
   a <- p_ %>% filter(group == 1) %>% select(y)
-  # dip_res <- dip.test(a$y)$p.value
-  # diptest_df <- rbind(diptest_df, dip_res)
-  dip_res <- dip.test(a$y, simulate.p.value = TRUE)$p.value
-  diptest_df2 <- rbind(diptest_df2, dip_res)
+  aa <- a %>% drop_na()
   b <- data_plot %>% filter(IDs == i)
-  dip_res <- dip.test(b$sample_frequency)$p.value
-  diptest_df1 <- rbind(diptest_df1, dip_res)
-  dip_res <- dip.test(b$sample_frequency)$statistic
-  diptest_df <- rbind(diptest_df, dip_res)
+  c <- p_ %>% filter(group == 2) %>% select(y)
   
   kurt_res <- kurtosis(b$sample_frequency, na.rm = TRUE) # Since the kurtosis is greater than 3, this indicates that the distribution has more values in the tails compared to a normal distribution.
   kurtosis_df <- rbind(kurtosis_df, kurt_res)
-  norm_res <- jarque.test(a$y)$p.value # None are sign when using binned data, exactly same results for inferred data
+  norm_res <- jarque.test(aa$y)$p.value # None are sign when using binned data, exactly same results for inferred data
   norm_df <- rbind(norm_df, norm_res)
-  # clust <- b %>% filter(!is.na(sample_frequency))
-  # mixmdl = normalmixEM(clust$sample_frequency)
-  # plot(mixmdl,which=2)
-  # lines(density(clust$sample_frequency), lty=2, lwd=2)
-  # plot(clust$sample_frequency)
-  
-  # b <- p_ %>% filter(group == 2) %>% select(y)
-  # 
-  # result <- wilcox.test(a$y, b$y, alternative = "greater")$p.value
+  ks_res <- ks.test(a$y,
+                   c$y)$p.value
+  ks_df <- rbind(ks_df, ks_res)
+  shapiro_res <- shapiro.test(b$sample_frequency)$p.value
+  shapiro_df <- rbind(shapiro_df, shapiro_res)
+  # shapiro_res <- shapiro.test(a$y)$p.value # Terrible on binned data
+  # shapiro_df2 <- rbind(shapiro_df2, shapiro_res)
+
   result <- t.test(p_ %>% filter(group == 1) %>% select(y),
                    p_ %>% filter(group == 2) %>% select(y),
                    alternative = "greater"
@@ -248,23 +240,25 @@ for(i in unique(gnomad_decoded$IDs)) {
 }
 test_mean <- test_mean %>% `colnames<-`(c("t_test")) %>% 
   mutate(IDs = c(unique(gnomad_decoded$IDs)))
-diptest_df <- diptest_df %>% `colnames<-`(c("dip")) %>% 
-  mutate(IDs = c(unique(gnomad_decoded$IDs)))
-diptest_df1 <- diptest_df1 %>% `colnames<-`(c("dip_test1")) %>% 
-  mutate(IDs = c(unique(gnomad_decoded$IDs)))
-diptest_df2 <- diptest_df2 %>% `colnames<-`(c("dip_test_simul")) %>% 
-  mutate(IDs = c(unique(gnomad_decoded$IDs)))
+
 kurtosis_df <- kurtosis_df %>% `colnames<-`(c("kurto")) %>% 
   mutate(IDs = c(unique(gnomad_decoded$IDs)))
 norm_df <- norm_df %>% `colnames<-`(c("jarque_test")) %>% 
   mutate(IDs = c(unique(gnomad_decoded$IDs)))
+ks_df <- ks_df %>% `colnames<-`(c("ks_test")) %>% 
+  mutate(IDs = c(unique(gnomad_decoded$IDs)))
+shapiro_df <- shapiro_df %>% `colnames<-`(c("shapiro_test")) %>% 
+  mutate(IDs = c(unique(gnomad_decoded$IDs)))
+# shapiro_df2 <- shapiro_df2 %>% `colnames<-`(c("shapiro_test2")) %>% 
+#   mutate(IDs = c(unique(gnomad_decoded$IDs)))
+
 # Bind the distribution characteristic values
 gnomad_decoded1 <- full_join(gnomad_decoded1, test_mean, by = "IDs") %>%
-  full_join(., diptest_df, by = "IDs") %>% 
-  full_join(., diptest_df1, by = "IDs") %>% 
-  full_join(., diptest_df2, by = "IDs") %>% 
   full_join(., kurtosis_df, by = "IDs") %>% 
   full_join(., norm_df, by = "IDs") %>% 
+  full_join(., ks_df, by = "IDs") %>% 
+  full_join(., shapiro_df, by = "IDs") %>% 
+  # full_join(., shapiro_df2, by = "IDs") %>% 
   # filter the significatant different
   filter(t_test > 0)
 
@@ -409,29 +403,8 @@ for(i in unique(data_p$IDs)) {
     )+
     geom_text(
       data    = data_plot,
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("D = ", round(dip, 3))),
-      colour = "purple",
-      hjust   = 0,
-      vjust   = -4
-    )+
-    geom_text(
-      data    = data_plot,
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("dip test histo = ", round(dip_test1, 3))),
-      colour = "blue",
-      hjust   = 0,
-      vjust   = -1
-    )+
-    geom_text(
-      data    = data_plot,
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("dip test sim = ", round(dip_test_simul, 3))),
-      colour = "black",
-      hjust   = 0,
-      vjust   = -2.5
-    )+
-    geom_text(
-      data    = data_plot,
       mapping = aes(x = -Inf, y = -Inf, label = paste0("kurtosis = ", round(kurto, 3))),
-      colour = "black",
+      colour = "darkblue",
       hjust   = -1,
       vjust   = -17
     )+
@@ -439,40 +412,75 @@ for(i in unique(data_p$IDs)) {
       data    = data_plot,
       mapping = aes(x = -Inf, y = -Inf, label = paste0("jarque pval = ", round(jarque_test, 3))),
       colour = "black",
-      hjust   = -2,
+      hjust   = -2.5,
       vjust   = -17
     )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("ks = ", round(ks_test, 3))),
+      colour = "black",
+      hjust   = -5,
+      vjust   = -15
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("shapiro test = ", round(shapiro_test, 3))),
+      colour = "black",
+      hjust   = -1.5,
+      vjust   = -13
+    )+
+    # geom_text(
+    #   data    = data_plot,
+    #   mapping = aes(x = -Inf, y = -Inf, label = paste0("shapiro test = ", round(shapiro_test2, 3))),
+    #   colour = "black",
+    #   hjust   = -1.5,
+    #   vjust   = -10
+    # )+
     theme_minimal()
   print(p)
+  p_ <- layer_data(p, 1)
+  
+  a <- p_ %>% filter(group == 1)
+  # aa <- a %>% drop_na()
+  # b <- data_plot %>% filter(IDs == i)
+  # c <- p_ %>% filter(group == 2) %>% select(y)
+  
+  (qqplot(a$y, a$x))
+  # plot(qq)
 
 }
+```
 
-# ggplot() + 
-#   geom_col(data = data_plot ,aes(x= age_bin, y= sample_density), 
-#            position = "identity", 
-#            fill = "darkblue", 
-#            alpha = 0.6)+
-#   theme_minimal()+
-#   facet_wrap(.~ IDs, ncol = 3, scales = "free_y")+
-#   geom_col(data =ref, aes(x =age_bin, y = density), position = "identity", fill = "yellow", alpha = 0.5)+ 
-#   geom_text(
-#     data    = data_plot,
-#     mapping = aes(x = -Inf, y = -Inf, label = paste0("skewness=", round(skewness, 2))),
-#     hjust   = 0,
-#     vjust   = 0
-#   )+ 
-#   geom_text(
-#     data    = data_plot,
-#     mapping = aes(x = -Inf, y = -Inf, label = paste0("chisq=", round(chisq, 2))),
-#     hjust   = 0,
-#     vjust   = -5
-#   )+ 
-#   geom_text(
-#     data    = data_plot,
-#     mapping = aes(x = -Inf, y = -Inf, label = paste0("KS=", round(kolmogorov, 7))),
-#     hjust   = 0,
-#     vjust   = -9
-#   )
+# qqplot
+```{r, fig.height= 3, fig.width=3}
+# for(i in unique(gnomad_decoded$IDs)) {
+#   
+#   All <- gnomad_decoded %>% filter(IDs == "All individuals"
+#            ) %>% 
+#     mutate(IDs = "Reference")
+#   data_plot <- gnomad_decoded %>% 
+#     filter(IDs == i
+#            ) %>% 
+#     bind_rows(., All) %>% 
+#     select("IDs", "age_bin", sample_frequency, center)
+#   
+#   p <- data_plot %>% 
+#     ggplot(aes(x = center, y= sample_frequency, color= IDs))+
+#     geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+#                 span = 0.6
+#     )+
+#     ylim(0, max(data_plot$sample_frequency))
+#   p_ <- layer_data(p, 1)
+#   
+#   a <- p_ %>% filter(group == 1)
+#   # aa <- a %>% drop_na()
+#   # b <- data_plot %>% filter(IDs == i)
+#   # c <- p_ %>% filter(group == 2) %>% select(y)
+#   
+#   qq <- (qqplot(a$y, a$x))
+#   # plot(qq)
+# 
+# }
 ```
 
 # Conclusion
@@ -482,4 +490,3 @@ for(i in unique(data_p$IDs)) {
 <br>
 
 
-<
