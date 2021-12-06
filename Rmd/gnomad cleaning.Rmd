@@ -180,6 +180,7 @@ gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs") #%>%
 
 test_mean <- data.frame(matrix(nrow=1, ncol=0)) 
 mann_w <-  data.frame(matrix(nrow=1, ncol=0)) 
+set.seed(1234)
 for(i in unique(gnomad_decoded$IDs)) {
   
   All <- gnomad_decoded %>% filter(IDs == "All individuals"#,
@@ -205,17 +206,24 @@ for(i in unique(gnomad_decoded$IDs)) {
     )+
     ylim(0, max(data_plot$sample_frequency))
   p_ <- layer_data(p, 1) %>% 
-    mutate(colour =  as.factor(colour))
+  mutate(colour =  as.factor(colour)) %>% 
+  mutate_if(is.numeric, ~replace(., is.na(.), 0))
 
-  a <- p_ %>% filter(group == 1) %>% select(y)
-  b <- p_ %>% filter(group == 2) %>% select(y)
-  # 
-  result <- wilcox.test(a$y, b$y, alternative = "greater")$p.value
+  # a <- p_ %>% filter(group == 1) %>% select(y)
+  # b <- p_ %>% filter(group == 2) %>% select(y)
+  variant <- p_ %>% filter(group == 1)
+  variant <- sample(variant$x, 180, prob = variant$y, replace = TRUE)
+  ref <- p_ %>% filter(group == 2)
+  ref <- sample(ref$x, 180, prob = ref$y, replace = TRUE)
+  
+  # result <- wilcox.test(a$y, b$y, alternative = "greater")$p.value
+  result <- wilcox.test(variant, ref, alternative = "greater")$p.value
   mann_w <- rbind(mann_w, result)
-  result <- t.test(p_ %>% filter(group == 1) %>% select(y),
-                   p_ %>% filter(group == 2) %>% select(y),
-                   alternative = "greater"
-                   )$p.value
+  # result <- t.test(p_ %>% filter(group == 1) %>% select(y),
+  #                  p_ %>% filter(group == 2) %>% select(y),
+  #                  alternative = "greater"
+  #                  )$p.value
+  result <- t.test(variant, ref, alternative = "greater")$p.value
   test_mean <- rbind(test_mean, result)
 
 }
@@ -413,12 +421,6 @@ for(i in unique(data_p$IDs)) {
 #   )
 ```
 
-# Conclusion
-
-T-test is working pretty well. I need to add a step for the bimodal curve. I will work on that next.  
-Will also work on the skewness test.  
-Note: I could also calculate the kurtosis to look at how "pointy" the distribution is...
-
 <br>
 <br>
 
@@ -457,6 +459,12 @@ for(i in unique(selected_variants$IDs)) {
       mapping = aes(x = -Inf, y = -Inf, label = paste0("t test = ", round(t_test, 3))),
       hjust   = 0,
       vjust   = -9
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW=", round(mann_w, 3))),
+      hjust   = 0,
+      vjust   = -5
     )+
     theme_minimal()
   print(p)

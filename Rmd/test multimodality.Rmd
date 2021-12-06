@@ -188,6 +188,7 @@ diptest_df1 <- data.frame(matrix(nrow=1, ncol=0))
 diptest_df2 <- data.frame(matrix(nrow=1, ncol=0)) 
 kurtosis_df <- data.frame(matrix(nrow=1, ncol=0)) 
 norm_df <- data.frame(matrix(nrow=1, ncol=0)) 
+set.seed(1234)
 for(i in unique(gnomad_decoded$IDs)) {
   
   All <- gnomad_decoded %>% filter(IDs == "All individuals"#,
@@ -212,8 +213,14 @@ for(i in unique(gnomad_decoded$IDs)) {
                 span = 0.6
     )+
     ylim(0, max(data_plot$sample_frequency))
-  p_ <- layer_data(p, 1)
+  p_ <- layer_data(p, 1) %>% 
+  mutate(colour =  as.factor(colour)) %>% 
+  mutate_if(is.numeric, ~replace(., is.na(.), 0))
   
+  variant <- p_ %>% filter(group == 1)
+  variant <- sample(variant$x, 180, prob = variant$y, replace = TRUE)
+  ref <- p_ %>% filter(group == 2)
+  ref <- sample(ref$x, 180, prob = ref$y, replace = TRUE)
 
   a <- p_ %>% filter(group == 1) %>% select(y)
   # dip_res <- dip.test(a$y)$p.value
@@ -239,10 +246,7 @@ for(i in unique(gnomad_decoded$IDs)) {
   # b <- p_ %>% filter(group == 2) %>% select(y)
   # 
   # result <- wilcox.test(a$y, b$y, alternative = "greater")$p.value
-  result <- t.test(p_ %>% filter(group == 1) %>% select(y),
-                   p_ %>% filter(group == 2) %>% select(y),
-                   alternative = "greater"
-                   )$p.value
+  result <- t.test(variant, ref, alternative = "greater")$p.value
   test_mean <- rbind(test_mean, result)
 
 }

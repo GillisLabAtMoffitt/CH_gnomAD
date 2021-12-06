@@ -176,6 +176,8 @@ df$IDs <- c(unique(gnomad_decoded$IDs))
 gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs")
 
 test_mean <- data.frame(matrix(nrow=1, ncol=0)) 
+mann_w <-  data.frame(matrix(nrow=1, ncol=0)) 
+set.seed(1234)
 for(i in unique(gnomad_decoded$IDs)) {
   
   All <- gnomad_decoded %>% filter(IDs == "All individuals"#,
@@ -197,36 +199,41 @@ for(i in unique(gnomad_decoded$IDs)) {
                 span = 0.6
     )+
     ylim(0, max(data_plot$sample_frequency))
-  p_ <- layer_data(p, 1)
-  dat <- p_ %>% filter(group == 1)
-
-  # Find x for y max
-  m <- dat %>% filter(y == max(y, na.rm = TRUE))
-  extreme <- dat %>% filter(
-    x <= m$x & y > quantile(dat$y, probs = 0.05, na.rm = TRUE) |
-      x >= m$x & y < quantile(dat$y, probs = 0.95, na.rm = TRUE)
-  )
-  # Remove the SD
-  p_ <- p_ %>% filter(x >= min(extreme$x) & x <= max(extreme$x))
-  # OR Keep 2 or 3 - SD
-  p_ <- p_ %>% filter(x >= min(extreme$x) & x <= max(extreme$x))
-  # p_ %>% 
-  #    ggplot(aes(x = x, y= y, color= as.factor(group)))+
-  #    geom_line(
-  #    )
+  p_ <- layer_data(p, 1) %>% 
+  mutate(colour =  as.factor(colour)) %>% 
+  mutate_if(is.numeric, ~replace(., is.na(.), 0))
   
-  result <- t.test(p_ %>% filter(group == 1) %>% select(y), 
-                   p_ %>% filter(group == 2) %>% select(y),
-                   alternative = "greater"
-                   )$p.value
+  variant <- p_ %>% filter(group == 1)
+  # # Find x for y max
+  # m <- variant %>% filter(y == max(y, na.rm = TRUE))
+  # extreme <- variant %>% filter(
+  #   x <= m$x & y > quantile(variant$y, probs = 0.05, na.rm = TRUE) |
+  #     x >= m$x & y < quantile(variant$y, probs = 0.95, na.rm = TRUE)
+  # )
+  # # Remove the SD
+  # p_ <- p_ %>% filter(x >= min(extreme$x) & x <= max(extreme$x))
+  # # OR Keep 2 or 3 - SD
+  # # p_ <- p_ %>% filter(x >= min(extreme$x) & x <= max(extreme$x))
+
+  variant <- sample(variant$x, 180, prob = variant$y, replace = TRUE)
+  ref <- p_ %>% filter(group == 2)
+  ref <- sample(ref$x, 180, prob = ref$y, replace = TRUE)
+  
+  result <- wilcox.test(variant, ref, alternative = "greater")$p.value
+  mann_w <- rbind(mann_w, result)
+
+  result <- t.test(variant, ref, alternative = "greater")$p.value
   test_mean <- rbind(test_mean, result)
 
 }
 test_mean <- test_mean %>% `colnames<-`(c("t_test")) %>% 
   mutate(IDs = c(unique(gnomad_decoded$IDs)))
+mann_w <- mann_w %>% `colnames<-`(c("mann_w")) %>% 
+  mutate(IDs = c(unique(gnomad_decoded$IDs)))
 
 # Bind the distribution characteristic values
 gnomad_decoded1 <- full_join(gnomad_decoded1, test_mean, by = "IDs") %>%
+  full_join(., mann_w, by = "IDs") %>%
   # filter the significatant different
   filter(t_test > 0)
 
@@ -380,6 +387,12 @@ for(i in unique(data_p$IDs)) {
       hjust   = 0,
       vjust   = -9
     )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW=", round(mann_w, 3))),
+      hjust   = 0,
+      vjust   = -5
+    )+
     theme_minimal()
   print(p)
 
@@ -412,10 +425,50 @@ for(i in unique(data_p$IDs)) {
 #     vjust   = -9
 #   )
 ```
+<br>
+<br>
 
-# Conclusion
+***
 
-Removing the 5 and 95% sd is not a good solution as it doesn't detect variant 7, 20, ...
+# 3.Selected variants with t test ≤ 0.05
+```{r, fig.height= 3, fig.width=7}
+selected_variants <- gnomad_decoded4 %>% 
+  filter(t_test <= 0.05)
+n <- 0
+for(i in unique(selected_variants$IDs)) {
+  
+  All <- gnomad_decoded1 %>% filter(IDs == "All individuals"
+           ) %>% mutate(IDs = "Reference")
+  data_plot <- selected_variants %>% 
+    filter(IDs == i
+           )
+  n <- n + 1
+  p <- data_plot %>% 
+    ggplot(aes(x = center, y= sample_frequency, color= IDs))+
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+                span = 0.6
+                )+
+    labs(title = n)+
+    ylim(0, max(data_plot$sample_frequency))+
+    geom_smooth(data = All, aes(x = center, y= sample_frequency, color= IDs), 
+                alpha= 0.5, se = FALSE, method = "loess",
+                span = 0.6
+                )+
+    geom_col(data = data_plot ,aes(x= center, y= sample_frequency),
+             position = "identity",
+             fill = "red",
+             alpha = 0.1)+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("t test = ", round(t_test, 3))),
+      hjust   = 0,
+      vjust   = -9
+    )+
+    theme_minimal()
+  print(p)
+
+}
+```
 
 <br>
 <br>

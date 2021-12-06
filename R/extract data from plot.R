@@ -34,8 +34,66 @@ p1_1
 
 t.test(p1_1 %>% filter(group == 1) %>% select(y), p1_1 %>% filter(group == 2) %>% select(y))
 
+###################### Using sampling
+x <- seq(15, 90,5)
+y1 <- rnorm(length(x), 0.05, 0.02)
+y2 <- rnorm(length(x), 0.06, 0.02)
+n1 <- sample(x, 50, prob = y1, replace = TRUE)
+n2 <- sample(x, 50, prob = y2, replace = TRUE)
+plot(density(n1))
+t.test(n1, n2)
+y3 <- rexp(length(x),0.2)
+plot(density(y3))
+n3 <- sample(x, 50, prob = y3, replace = TRUE)
+kurtosis(n3) # WRONG
 
+kurtosis(y3)
 
+y4 <- rnorm(length(x), mean = 0, sd = 4)
+n1 <- sample(x, 50, prob = y4, replace = TRUE)
+
+x <- seq(-4, 4, length=100)
+y <- dunif(x, min = -3, max = 3)
+kurtosis(y)
+plot(x, y, type = 'l')
+plot(density(y))
+
+success <- 0:20
+a <- dbinom(success, size=20, prob=.3)
+plot(success, dbinom(success, size=20, prob=.3),type='h')
+kurtosis(a)
+
+plot(density(y4))
+kurtosis(y4)
+# The values for asymmetry and kurtosis between -2 and +2 are considered 
+# acceptable in order to prove normal univariate distribution (George & Mallery, 2010). 
+# (2010) and Bryne (2010) argued that data is considered to be normal if 
+# skewness is between ‐2 to +2 and kurtosis is between ‐7 to +7.
+# Kurtosis is a measure of the combined sizes of the two tails. ... 
+# If the kurtosis is greater than 3, then the dataset has heavier tails than a 
+# normal distribution (more in the tails). If the kurtosis is less than 3, then 
+# the dataset has lighter tails than a normal distribution (less in the tails).
+
+p <- data_plot %>% 
+  ggplot(aes(x = center, y= sample_frequency, color= IDs))+
+  # ggplot(aes(x = age_bin, y= sample_frequency, color= IDs))+
+  # geom_bar(stat = "identity", aes(alpha= IDs))
+  geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+              # method.args=list(family=quasibinomial)#,
+              span = 0.6
+  )+
+  ylim(0, max(data_plot$sample_frequency))
+p_ <- layer_data(p, 1) %>% 
+  mutate(colour =  as.factor(colour)) %>% 
+  mutate_if(is.numeric, ~replace(., is.na(.), 0))
+
+ref <- p_ %>% filter(group == 2)
+ref <- sample(ref$x, 180, prob = ref$y, replace = TRUE)
+
+variant <- p_ %>% filter(group == 1)
+variant <- sample(variant$x, 180, prob = variant$y, replace = TRUE)
+
+t.test(ref, variant)
 
 
 ########################################################
