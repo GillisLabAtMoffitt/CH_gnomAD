@@ -149,25 +149,25 @@ I added a t-test.
 
 Then with the skewness test, I wanted to keep the variant as long as its distribution is shifted to the right - older age (skewness test should be > 0 - but not working great as you will see on the plots at the end) so working on that. -- Will now work on it after creating the t-test.
 ```{r}
-goodness_fit1 <- data.frame(matrix(nrow=1, ncol=0)) 
-goodness_fit2 <- data.frame(matrix(nrow=1, ncol=0)) 
-skew <- data.frame(matrix(nrow=1, ncol=0)) 
+goodness_fit1 <- data.frame(matrix(nrow=1, ncol=0))
+goodness_fit2 <- data.frame(matrix(nrow=1, ncol=0))
+skew <- data.frame(matrix(nrow=1, ncol=0))
 
 for(i in unique(gnomad_decoded$IDs)) {
-  
+
   All <- gnomad_decoded %>% filter(IDs == "All individuals") %>% select(sample_count)
-  
-  a <- bind_cols(gnomad_decoded %>% filter(IDs == i) %>% select(sample_count) , All) %>% 
+
+  a <- bind_cols(gnomad_decoded %>% filter(IDs == i) %>% select(sample_count) , All) %>%
     `colnames<-`(c(i, "All"))
   result <- chisq.test(a[,i], p=a$All, rescale.p=TRUE)$p.value
   goodness_fit1 <- rbind(goodness_fit1, result)
-  
+
   result <- ks.test(a[,i], a$All)$p.value
   goodness_fit2 <- rbind(goodness_fit2, result)
-  
+
   result <- skewness(a[[i]], type = 2)
   skew <- rbind(skew, result)
-  
+
 }
 df <- bind_cols(goodness_fit1, goodness_fit2, skew) %>% `colnames<-`(c("chisq", "kolmogorov", "skewness"))
 df$IDs <- c(unique(gnomad_decoded$IDs))
@@ -184,16 +184,29 @@ for(i in unique(gnomad_decoded$IDs)) {
            # age_bin != "<30",
            # age_bin != ">80"
            ) %>% 
+    # mutate(sample_frequency = case_when( # to set extreme biins to 0
+    #   age_bin == "<30" |
+    #     age_bin == ">80"                ~ 0,
+    #   TRUE                              ~ sample_frequency
+    # )) %>% 
     mutate(IDs = "Reference")
   data_plot <- gnomad_decoded %>% 
     filter(IDs == i#,
            # age_bin != "<30",
            # age_bin != ">80"
            ) %>% 
+    # mutate(sample_frequency = case_when( # to set extreme biins to 0
+    #   age_bin == "<30" |
+    #     age_bin == ">80"                ~ 0,
+    #   TRUE                              ~ sample_frequency
+    # )) %>% 
     bind_rows(., All) %>% 
     select("IDs", "age_bin", sample_frequency, center)
   
   p <- data_plot %>% 
+    # group_by(IDs) %>% 
+    # mutate(mean = mean(sample_frequency, na.rm = TRUE))
+  
     ggplot(aes(x = center, y= sample_frequency, color= IDs))+
     geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
                 span = 0.6
@@ -204,6 +217,8 @@ for(i in unique(gnomad_decoded$IDs)) {
   mutate_if(is.numeric, ~replace(., is.na(.), 0))
   
   variant <- p_ %>% filter(group == 1)
+  variant$y[variant$x < mean(variant$x ) - (1*sd(variant$x)) | variant$x > mean(variant$x ) + (1*sd(variant$x))] = 0 # set SD to 0
+  variant <- sample(variant$x, 180, prob = variant$y, replace = TRUE)
   # # Find x for y max
   # m <- variant %>% filter(y == max(y, na.rm = TRUE))
   # extreme <- variant %>% filter(
@@ -215,8 +230,8 @@ for(i in unique(gnomad_decoded$IDs)) {
   # # OR Keep 2 or 3 - SD
   # # p_ <- p_ %>% filter(x >= min(extreme$x) & x <= max(extreme$x))
 
-  variant <- sample(variant$x, 180, prob = variant$y, replace = TRUE)
   ref <- p_ %>% filter(group == 2)
+  ref$y[ref$x < mean(ref$x ) - (1*sd(ref$x)) | ref$x > mean(ref$x ) + (1*sd(ref$x))] = 0
   ref <- sample(ref$x, 180, prob = ref$y, replace = TRUE)
   
   result <- wilcox.test(variant, ref, alternative = "greater")$p.value
