@@ -6,7 +6,7 @@ path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
 cosmic_data <-
   read.delim(paste0(path, "/cosmic_raw_data/hg38_cosmic70.txt")) %>% 
   `colnames<-`(c("#Chr","Start","End","Ref","Alt","INFO"))
-head(cosmic_data)
+head(cosmic_data, n = 30)
 
 
 # Extract cosmic id, occurrence and occurrence site

@@ -180,33 +180,34 @@ mann_w <-  data.frame(matrix(nrow=1, ncol=0))
 set.seed(1234)
 for(i in unique(gnomad_decoded$IDs)) {
   
-  All <- gnomad_decoded %>% filter(IDs == "All individuals"#,
-           # age_bin != "<30",
+  All <- gnomad_decoded %>% filter(IDs == "All individuals",
+           age_bin != "<30"#,
            # age_bin != ">80"
            ) %>% 
-    # mutate(sample_frequency = case_when( # to set extreme biins to 0
-    #   age_bin == "<30" |
-    #     age_bin == ">80"                ~ 0,
-    #   TRUE                              ~ sample_frequency
-    # )) %>% 
+    mutate(sample_frequency = case_when( ## On to set extreme bins to 0
+      age_bin == "<30" #|
+        # age_bin == ">80"                
+      ~ 0,
+      TRUE                              ~ sample_frequency
+    )) %>%
     mutate(IDs = "Reference")
   data_plot <- gnomad_decoded %>% 
-    filter(IDs == i#,
-           # age_bin != "<30",
+    filter(IDs == i,
+           age_bin != "<30"#,
            # age_bin != ">80"
            ) %>% 
-    # mutate(sample_frequency = case_when( # to set extreme biins to 0
-    #   age_bin == "<30" |
-    #     age_bin == ">80"                ~ 0,
-    #   TRUE                              ~ sample_frequency
-    # )) %>% 
+    mutate(sample_frequency = case_when( ## On to set extreme bins to 0
+      age_bin == "<30" #|
+        # age_bin == ">80"                
+      ~ 0,
+      TRUE                              ~ sample_frequency
+    )) %>%
     bind_rows(., All) %>% 
     select("IDs", "age_bin", sample_frequency, center)
   
   p <- data_plot %>% 
     # group_by(IDs) %>% 
     # mutate(mean = mean(sample_frequency, na.rm = TRUE))
-  
     ggplot(aes(x = center, y= sample_frequency, color= IDs))+
     geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
                 span = 0.6
@@ -217,7 +218,7 @@ for(i in unique(gnomad_decoded$IDs)) {
   mutate_if(is.numeric, ~replace(., is.na(.), 0))
   
   variant <- p_ %>% filter(group == 1)
-  variant$y[variant$x < mean(variant$x ) - (1*sd(variant$x)) | variant$x > mean(variant$x ) + (1*sd(variant$x))] = 0 # set SD to 0
+  # variant$y[variant$x < mean(variant$x ) - (1*sd(variant$x)) | variant$x > mean(variant$x ) + (1*sd(variant$x))] = 0 ### On when set SD to 0
   variant <- sample(variant$x, 180, prob = variant$y, replace = TRUE)
   # # Find x for y max
   # m <- variant %>% filter(y == max(y, na.rm = TRUE))
@@ -231,7 +232,7 @@ for(i in unique(gnomad_decoded$IDs)) {
   # # p_ <- p_ %>% filter(x >= min(extreme$x) & x <= max(extreme$x))
 
   ref <- p_ %>% filter(group == 2)
-  ref$y[ref$x < mean(ref$x ) - (1*sd(ref$x)) | ref$x > mean(ref$x ) + (1*sd(ref$x))] = 0
+  # ref$y[ref$x < mean(ref$x ) - (1*sd(ref$x)) | ref$x > mean(ref$x ) + (1*sd(ref$x))] = 0 ### On when set SD to 0
   ref <- sample(ref$x, 180, prob = ref$y, replace = TRUE)
   
   result <- wilcox.test(variant, ref, alternative = "greater")$p.value
@@ -250,7 +251,7 @@ mann_w <- mann_w %>% `colnames<-`(c("mann_w")) %>%
 gnomad_decoded1 <- full_join(gnomad_decoded1, test_mean, by = "IDs") %>%
   full_join(., mann_w, by = "IDs") %>%
   # filter the significatant different
-  filter(t_test > 0)
+  filter(mann_w > 0)
 
 ```
 
@@ -445,10 +446,10 @@ for(i in unique(data_p$IDs)) {
 
 ***
 
-# 3.Selected variants with t test ≤ 0.05
+# 3.Selected variants with Mann-Whitney ≤ 0.05
 ```{r, fig.height= 3, fig.width=7}
 selected_variants <- gnomad_decoded4 %>% 
-  filter(t_test <= 0.05)
+  filter(mann_w <= 0.05)
 n <- 0
 for(i in unique(selected_variants$IDs)) {
   
@@ -479,6 +480,12 @@ for(i in unique(selected_variants$IDs)) {
       hjust   = 0,
       vjust   = -9
     )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW=", round(mann_w, 3))),
+      hjust   = 0,
+      vjust   = -5
+    )+
     theme_minimal()
   print(p)
 
@@ -489,83 +496,83 @@ for(i in unique(selected_variants$IDs)) {
 <br>
 
 
-<!-- # 3. Extract allele count and frequency variables on the selected variants -->
+# 3. Extract allele count and frequency variables on the selected variants
 ```{r}
-# gnomad_decoded5 <- gnomad_decoded4 %>% 
-#   # Generate allele count variables from the INFO var
-#   mutate(alt_allele_count = str_match(INFO, "AC=(.*?);")[,2]) %>%
-#   mutate(alt_allele_count_afr_female = str_match(INFO, "AC_female=(.*?);")[,2]) %>%
-#   mutate(alt_allele_count_male = str_match(INFO, "AC_male=(.*?);")[,2]) %>%
-#   
-#   mutate(alt_allele_count_afr = str_match(INFO, "AC_afr=(.*?);")[,2]) %>%
-#   mutate(alt_allele_count_afr_female = str_match(INFO, "AC_afr_female=(.*?);")[,2]) %>%
-#   mutate(alt_allele_count_male = str_match(INFO, "AC_afr_male=(.*?);")[,2]) %>%
-#   
-#   mutate(alt_allele_count_afr = str_match(INFO, "AC_amr=(.*?);")[,2]) %>%
-#   mutate(alt_allele_count_afr_female = str_match(INFO, "AC_amr_female=(.*?);")[,2]) %>%
-#   mutate(alt_allele_count_male = str_match(INFO, "AC_amr_male=(.*?);")[,2]) %>%
-#   
-#   # Generate allele count variables from the INFO var
-#   mutate(freq_allele_count = str_match(INFO, "AF=(.*?);")[,2]) %>%
-#   mutate(freq_allele_count_afr_female = str_match(INFO, "AF_female=(.*?);")[,2]) %>%
-#   mutate(freq_allele_count_male = str_match(INFO, "AF_male=(.*?);")[,2]) %>%
-#   
-#   mutate(freq_allele_count_afr = str_match(INFO, "AF_afr=(.*?);")[,2]) %>%
-#   mutate(freq_allele_count_afr_female = str_match(INFO, "AF_afr_female=(.*?);")[,2]) %>%
-#   mutate(freq_allele_count_male = str_match(INFO, "AF_afr_male=(.*?);")[,2]) %>%
-#   
-#   mutate(freq_allele_count_afr = str_match(INFO, "AF_amr=(.*?);")[,2]) %>%
-#   mutate(freq_allele_count_afr_female = str_match(INFO, "AF_amr_female=(.*?);")[,2]) %>%
-#   mutate(freq_allele_count_male = str_match(INFO, "AF_amr_male=(.*?);")[,2]) %>%
-#   
-#   # Depth of informative coverage for each sample
-#   mutate(freq_allele_count = str_match(INFO, "DP=(.*?);")[,2]) %>%
-#   # GQ
-#   
-#   
-#   
-#   # allele type
-#   mutate(allele_type = str_match(INFO, "allele_type=(.*?);")[,2]) %>%
-#   # variant type
-#   mutate(variant_type = str_match(INFO, "variant_type=(.*?);")[,2]) %>%
-#   # Number=A,Type=String,Description="Population with maximum AF in the controls subset">
-#   mutate(controls_popmax = str_match(INFO, "controls_popmax=(.*?);")[,2]) %>%
-#   
-#   
-#   ## NON CANCER
-#   # Generate allele count variables from the INFO var
-#   mutate(nc_alt_allele_count = str_match(INFO, "non_cancer_AC=(.*?);")[,2]) %>%
-#   mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_female=(.*?);")[,2]) %>%
-#   mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_male=(.*?);")[,2]) %>%
-#   
-#   mutate(nc_alt_allele_count_afr = str_match(INFO, "non_cancer_AC_afr=(.*?);")[,2]) %>%
-#   mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_afr_female=(.*?);")[,2]) %>%
-#   mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_afr_male=(.*?);")[,2]) %>%
-#   
-#   mutate(nc_alt_allele_count_afr = str_match(INFO, "non_cancer_AC_amr=(.*?);")[,2]) %>%
-#   mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_amr_female=(.*?);")[,2]) %>%
-#   mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_amr_male=(.*?);")[,2]) %>%
-#   
-#   # Generate allele count variables from the INFO var
-#   mutate(nc_freq_allele_count = str_match(INFO, "non_cancer_AF=(.*?);")[,2]) %>%
-#   mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_female=(.*?);")[,2]) %>%
-#   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_male=(.*?);")[,2]) %>%
-#   
-#   mutate(nc_freq_allele_count_afr = str_match(INFO, "non_cancer_AF_afr=(.*?);")[,2]) %>%
-#   mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_afr_female=(.*?);")[,2]) %>%
-#   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_afr_male=(.*?);")[,2]) %>%
-#   
-#   mutate(nc_freq_allele_count_afr = str_match(INFO, "non_cancer_AF_amr=(.*?);")[,2]) %>%
-#   mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_amr_female=(.*?);")[,2]) %>%
-#   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_amr_male=(.*?);")[,2]) %>%
-#   
-#   # "Total number of alleles in samples in the non_cancer subset, before removing low-confidence genotypes">
-#   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2])
+gnomad_decoded5 <- gnomad_decoded4 %>%
+  # Generate allele count variables from the INFO var
+  mutate(alt_allele_count = str_match(INFO, "AC=(.*?);")[,2]) %>%
+  mutate(alt_allele_count_afr_female = str_match(INFO, "AC_female=(.*?);")[,2]) %>%
+  mutate(alt_allele_count_male = str_match(INFO, "AC_male=(.*?);")[,2]) %>%
+
+  mutate(alt_allele_count_afr = str_match(INFO, "AC_afr=(.*?);")[,2]) %>%
+  mutate(alt_allele_count_afr_female = str_match(INFO, "AC_afr_female=(.*?);")[,2]) %>%
+  mutate(alt_allele_count_male = str_match(INFO, "AC_afr_male=(.*?);")[,2]) %>%
+
+  mutate(alt_allele_count_afr = str_match(INFO, "AC_amr=(.*?);")[,2]) %>%
+  mutate(alt_allele_count_afr_female = str_match(INFO, "AC_amr_female=(.*?);")[,2]) %>%
+  mutate(alt_allele_count_male = str_match(INFO, "AC_amr_male=(.*?);")[,2]) %>%
+
+  # Generate allele count variables from the INFO var
+  mutate(freq_allele_count = str_match(INFO, "AF=(.*?);")[,2]) %>%
+  mutate(freq_allele_count_afr_female = str_match(INFO, "AF_female=(.*?);")[,2]) %>%
+  mutate(freq_allele_count_male = str_match(INFO, "AF_male=(.*?);")[,2]) %>%
+
+  mutate(freq_allele_count_afr = str_match(INFO, "AF_afr=(.*?);")[,2]) %>%
+  mutate(freq_allele_count_afr_female = str_match(INFO, "AF_afr_female=(.*?);")[,2]) %>%
+  mutate(freq_allele_count_male = str_match(INFO, "AF_afr_male=(.*?);")[,2]) %>%
+
+  mutate(freq_allele_count_afr = str_match(INFO, "AF_amr=(.*?);")[,2]) %>%
+  mutate(freq_allele_count_afr_female = str_match(INFO, "AF_amr_female=(.*?);")[,2]) %>%
+  mutate(freq_allele_count_male = str_match(INFO, "AF_amr_male=(.*?);")[,2]) %>%
+
+  # Depth of informative coverage for each sample
+  mutate(freq_allele_count = str_match(INFO, "DP=(.*?);")[,2]) %>%
+  # GQ
+
+
+
+  # allele type
+  mutate(allele_type = str_match(INFO, "allele_type=(.*?);")[,2]) %>%
+  # variant type
+  mutate(variant_type = str_match(INFO, "variant_type=(.*?);")[,2]) %>%
+  # Number=A,Type=String,Description="Population with maximum AF in the controls subset">
+  mutate(controls_popmax = str_match(INFO, "controls_popmax=(.*?);")[,2]) %>%
+
+
+  ## NON CANCER
+  # Generate allele count variables from the INFO var
+  mutate(nc_alt_allele_count = str_match(INFO, "non_cancer_AC=(.*?);")[,2]) %>%
+  mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_female=(.*?);")[,2]) %>%
+  mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_male=(.*?);")[,2]) %>%
+
+  mutate(nc_alt_allele_count_afr = str_match(INFO, "non_cancer_AC_afr=(.*?);")[,2]) %>%
+  mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_afr_female=(.*?);")[,2]) %>%
+  mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_afr_male=(.*?);")[,2]) %>%
+
+  mutate(nc_alt_allele_count_afr = str_match(INFO, "non_cancer_AC_amr=(.*?);")[,2]) %>%
+  mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_amr_female=(.*?);")[,2]) %>%
+  mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_amr_male=(.*?);")[,2]) %>%
+
+  # Generate allele count variables from the INFO var
+  mutate(nc_freq_allele_count = str_match(INFO, "non_cancer_AF=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_female=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_male=(.*?);")[,2]) %>%
+
+  mutate(nc_freq_allele_count_afr = str_match(INFO, "non_cancer_AF_afr=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_afr_female=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_afr_male=(.*?);")[,2]) %>%
+
+  mutate(nc_freq_allele_count_afr = str_match(INFO, "non_cancer_AF_amr=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_amr_female=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_amr_male=(.*?);")[,2]) %>%
+
+  # "Total number of alleles in samples in the non_cancer subset, before removing low-confidence genotypes">
+  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2])
 ```
 
 
 ```{r}
-# head(gnomad_decoded5)
+head(gnomad_decoded5)
 ```
 
 
