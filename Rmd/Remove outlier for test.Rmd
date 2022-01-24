@@ -333,11 +333,11 @@ table(gnomad_decoded3$Consequence)
 
 # table(gnomad_decoded3$SYMBOL)
 
-gnomad_decoded4 <- gnomad_decoded3 %>% 
-  filter(!str_detect(Consequence, "3_prime_UTR_variant|5_prime_UTR_variant") #| IDs == "All individuals"#, SYMBOL == "DNMT3A"
-         )
+gnomad_decoded4 <- gnomad_decoded3 #%>% 
+  # filter(!str_detect(Consequence, "3_prime_UTR_variant|5_prime_UTR_variant") #| IDs == "All individuals"#, SYMBOL == "DNMT3A"
+  #        )
 ```
-I only selected the variants not in 3 and 5' for now. I am keeping everything else as you said.  
+<!-- I only selected the variants not in 3 and 5' for now. I am keeping everything else as you said.   -->
 <!-- Let me know if I am correct and if I can be more selective.   -->
 <!-- But we have the same thing for HGVSc, HGVSp (I think we only keep the HGVSp...) -->
 
