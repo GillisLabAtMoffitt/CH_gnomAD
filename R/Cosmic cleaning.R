@@ -8,6 +8,13 @@ cosmic_data <-
   `colnames<-`(c("#Chr","Start","End","Ref","Alt","INFO"))
 head(cosmic_data, n = 30)
 
+# cosmic_data <-
+#   read.delim(paste0(path, "/cosmic_raw_data/CosmicMutantExport.tsv.gz"))
+classification <-
+  read_csv(paste0(path, "/cosmic_raw_data/classification.csv"))
+
+
+
 
 # Extract cosmic id, occurrence and occurrence site
 cosmic_data <- cosmic_data %>% 
