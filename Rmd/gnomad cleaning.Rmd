@@ -46,7 +46,7 @@ div.blue { background-color:#0099CC; border-radius: 5px; padding: 20px; font-siz
 </style>
 <div class = "blue">
 
-<span style="color: white;">Manuscript</span>
+<span style="color: white;">GnomAD data</span>
 
 </div>
 <br>
@@ -55,6 +55,7 @@ div.blue { background-color:#0099CC; border-radius: 5px; padding: 20px; font-siz
 library(tidyverse)
 library(e1071)
 library(purrr)
+library(gtsummary)
 ```
 
 ```{r load}
@@ -65,13 +66,19 @@ gnomad <-
              col.names = c("X.CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO"))
 ```
 
-# 1. Data cleaning
 As an example I selected all the variant DNMT3A. Here is a example of the raw data.
 ```{r}
 head(gnomad)
 ```
+<br>
 
-I first extracted the age bin and sample counts from the `INFO` variable.
+***
+
+# I. Data extraction for variants selection
+## 1. Extract age to look for skewness
+
+
+I extracted the age bin and sample counts for each bin from the `INFO` variable.
 ```{r}
 gnomad_decoded <- gnomad %>% 
   mutate(X.CHROM = str_remove(X.CHROM, "chr")) %>% 
@@ -106,6 +113,8 @@ gnomad_decoded <- gnomad %>%
   select(IDs, everything())
 ```
 
+I filtered out variants that are present in less than or equal to 10 samples.
+
 ```{r, max.print = 30}
 head(gnomad_decoded %>% select(IDs, "<30", "30-35","35-40","40-45","45-50","50-55","55-60","60-65","65-70","70-75","75-80", ">80", everything() ))
 ```
@@ -134,7 +143,7 @@ gnomad_decoded <- gnomad_decoded %>%
                             age_bin == "75-80" ~ 77.5,
                             TRUE ~ 90
   )) %>% 
-  mutate(sample_density = sample_count / nbr_individuals) %>%
+  # mutate(sample_density = sample_count / nbr_individuals) %>%
   mutate(sample_frequency = sample_count / nbr_individuals)
 ```
 We have data on `r gnomad_decoded %>% distinct(IDs) %>% nrow` DNMT3A variants.  
@@ -143,41 +152,47 @@ We have data on `r gnomad_decoded %>% distinct(IDs) %>% nrow` DNMT3A variants.
 The dictionary gives the "reference" distribution =  overall distribution of sample in gnomAD per bins: 2547|3423|4546|8487|10355|12693|11933|10534|8882|5991|4136|1935.  
 <br>
 
-Comparing distribution of each variant with the reference:  
-I kept the results of the chi-square test in case we use it later but I didn't remove any variant
-I added a t-test.
+### Comparing distribution of each variant with the reference:  
+I tried to compare the bins distribution with a chi-square test but it is not the best test as we want to look at skewed distribution.  
+I added a t-test. For that I used a geom_smooth to get a continuous data reflecting the pattern of the bins distribution. I used a one sided t-test to look at variants which have greater mean than the reference (shifted to the right - older age)
 
-Then with the skewness test, I wanted to keep the variant as long as its distribution is shifted to the right - older age (skewness test should be > 0 - but not working great as you will see on the plots at the end) so working on that. -- Will now work on it after creating the t-test.
+Detailed explanation:
+I found a way to create a continuous data from the binned data without assuming for a type of distribution.  
+I first plotted a `geom_smooth()` plot which fit the best the binned data and used the `ggplot_build()` function to extract the continuous data set that ggplot used to plot it.  
+With this continuous data, I was able to do a t-test.  
+
+```{r chisq skewness}
+# goodness_fit1 <- data.frame(matrix(nrow=1, ncol=0)) 
+# goodness_fit2 <- data.frame(matrix(nrow=1, ncol=0)) 
+# skew <- data.frame(matrix(nrow=1, ncol=0)) 
+# 
+# for(i in unique(gnomad_decoded$IDs)) {
+#   
+#   All <- gnomad_decoded %>% filter(IDs == "All individuals") %>% select(sample_count)
+#   
+#   a <- bind_cols(gnomad_decoded %>% filter(IDs == i) %>% select(sample_count) , All) %>% 
+#     `colnames<-`(c(i, "All"))
+#   result <- chisq.test(a[,i], p=a$All, rescale.p=TRUE)$p.value
+#   goodness_fit1 <- rbind(goodness_fit1, result)
+#   
+#   result <- ks.test(a[,i], a$All)$p.value
+#   goodness_fit2 <- rbind(goodness_fit2, result)
+#   
+#   result <- skewness(a[[i]], type = 2)
+#   skew <- rbind(skew, result)
+#   
+# }
+# df <- bind_cols(goodness_fit1, goodness_fit2, skew) %>% `colnames<-`(c("chisq", "kolmogorov", "skewness"))
+# df$IDs <- c(unique(gnomad_decoded$IDs))
+# 
+# # Bind the distribution characteristic values
+# gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs") #%>% 
+#   # filter the significatant different
+#   # filter((chisq > 0.05 | kolmogorov > 0.05) )
+```
+
+
 ```{r}
-goodness_fit1 <- data.frame(matrix(nrow=1, ncol=0)) 
-goodness_fit2 <- data.frame(matrix(nrow=1, ncol=0)) 
-skew <- data.frame(matrix(nrow=1, ncol=0)) 
-
-for(i in unique(gnomad_decoded$IDs)) {
-  
-  All <- gnomad_decoded %>% filter(IDs == "All individuals") %>% select(sample_count)
-  
-  a <- bind_cols(gnomad_decoded %>% filter(IDs == i) %>% select(sample_count) , All) %>% 
-    `colnames<-`(c(i, "All"))
-  result <- chisq.test(a[,i], p=a$All, rescale.p=TRUE)$p.value
-  goodness_fit1 <- rbind(goodness_fit1, result)
-  
-  result <- ks.test(a[,i], a$All)$p.value
-  goodness_fit2 <- rbind(goodness_fit2, result)
-  
-  result <- skewness(a[[i]], type = 2)
-  skew <- rbind(skew, result)
-  
-}
-df <- bind_cols(goodness_fit1, goodness_fit2, skew) %>% `colnames<-`(c("chisq", "kolmogorov", "skewness"))
-df$IDs <- c(unique(gnomad_decoded$IDs))
-
-# Bind the distribution characteristic values
-gnomad_decoded1 <- full_join(gnomad_decoded, df, by = "IDs") #%>% 
-  # filter the significatant different
-  # filter((chisq > 0.05 | kolmogorov > 0.05) )
-
-
 test_mean <- data.frame(matrix(nrow=1, ncol=0)) 
 mann_w <-  data.frame(matrix(nrow=1, ncol=0)) 
 set.seed(1234)
@@ -233,46 +248,113 @@ mann_w <- mann_w %>% `colnames<-`(c("mann_w")) %>%
   mutate(IDs = c(unique(gnomad_decoded$IDs)))
 
 # Bind the distribution characteristic values
-gnomad_decoded1 <- full_join(gnomad_decoded1, test_mean, by = "IDs") %>%
+gnomad_decoded1 <- full_join(gnomad_decoded, test_mean, by = "IDs") %>%
   full_join(., mann_w, by = "IDs") %>%
   # filter the significatant different
   filter(t_test > 0)
 
 ```
 
-After this cleaning, the number of DNMT3A variants is `r gnomad_decoded1 %>% distinct(IDs) %>% nrow`.  
+After selecting the samples with a skewed distribution, the number of DNMT3A variants is `r gnomad_decoded1 %>% distinct(IDs) %>% nrow`. For now, I kept all variants (see results in part II).   
 <!-- But I also think we can reduce their numbers by other means. For example,   -->
 
-I extracted the VEP annotations data from `INFO`.  
-But you can see that in VEP, we have multiple Variant Effect Predictor separated by a comma.
+## 2. Filter variants with low sample size 
+I extracted AN which is the “Total number of alleles in samples”. It is the denominator for allele frequency calculations (AN is allele number), which is 2x the number of individuals in gnomAD with either reference or alternate alleles at the variant site
 ```{r}
-gnomad_decoded2 <- gnomad_decoded1 %>% 
+gnomad_decoded1 <- gnomad_decoded1 %>%
+  # Generate AN variable from the INFO var
+  mutate(samples_count = as.numeric(str_match(INFO, "AN=(.*?);")[,2])) 
+```
+
+```{r}
+gnomad_decoded1 %>% 
+  ggplot(aes(x= samples_count, y= t_test, color = t_test <= 0.05))+
+  geom_point(size = 1)+
+  ylim(c(0,1))+
+  scale_y_log10()+
+  theme_minimal()
+```
+
+```{r}
+gnomad_decoded2a <- gnomad_decoded1 %>% 
   mutate(ens_vep = str_match(INFO, ";vep=(.*?)$")[,2])
-
-head(gnomad_decoded2 %>% select(IDs, ens_vep))[1:3,]
-```
-<br>
-
-<!-- Here an example on gnomAD browser -->
-```{r, out.width='100%'}
-# knitr::include_graphics('/Users/colinccm/Documents/GitHub/Gillis/CH_gnomAD/variant effect predictor.jpg')
-```
-<br>
-
-
-So I made 1 row for each Variant Effect Predictor.
-```{r}
-gnomad_decoded2a <- gnomad_decoded2 %>% 
+gnomad_decoded2b <- gnomad_decoded2a %>% 
   separate(col = ens_vep, paste("ens_vep", 1:25, sep=""),
            sep = ",", remove = T, extra = "warn", fill = "right") %>% 
   keep(~!all(is.na(.))) %>% 
   pivot_longer(cols = starts_with("ens_vep"), names_to = NULL, values_to = "ens_vep") %>% 
   drop_na(ens_vep)
 
-head(gnomad_decoded2 %>% select(IDs, ens_vep))
+ens_vep_var_names <- c("Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "
+  cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "
+  STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "
+  TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "
+  SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "
+  ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "
+  HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info")
+
+gnomad_decoded3 <- gnomad_decoded2b %>% 
+  separate(col = ens_vep, into = ens_vep_var_names,
+           # paste("ens_vep", 1:100, sep=""),
+           sep = "\\|", remove = F, extra = "warn", fill = "right")
 ```
 
-For each VEP, we now have access to these information :  
+
+```{r}
+gnomad_decoded3 %>% 
+  # select(SYMBOL, samples_count) %>% 
+  ggplot(aes(x= SYMBOL, y= samples_count))+
+  geom_boxplot()
+
+gnomad_decoded3 %>% 
+  select(SYMBOL, samples_count) %>% 
+  tbl_summary(by = SYMBOL)
+
+gnomad_decoded3 %>% 
+  select(SYMBOL, samples_count) %>% 
+  tbl_summary(by = SYMBOL,
+              statistic = list(all_continuous() ~ "{mean} ({min} - {max})")
+  )
+```
+<br>
+<br>
+
+***
+
+<br>
+
+## 3. Filtering out Consequence 
+We could filtered out `Consequence` in the 3_prime_UTR_variant or 5_prime_UTR_variant.  
+I extracted the VEP annotations data from `INFO`.  
+But you can see that in VEP, we have multiple Variant Effect Predictor separated by a comma.
+```{r}
+# gnomad_decoded2 <- gnomad_decoded1 %>% 
+#   mutate(ens_vep = str_match(INFO, ";vep=(.*?)$")[,2])
+
+head(gnomad_decoded2a %>% select(ens_vep))[1:3,]
+```
+<br>
+
+<!-- Here an example of `Consequence` on gnomAD browser -->
+```{r, out.width='100%'}
+# knitr::include_graphics('/Users/colinccm/Documents/GitHub/Gillis/CH_gnomAD/variant effect predictor.jpg')
+```
+<br>
+
+
+I made 1 row for each Variant Effect Predictor so multiple rows per variants.
+```{r}
+# gnomad_decoded2 <- gnomad_decoded2 %>% 
+#   separate(col = ens_vep, paste("ens_vep", 1:25, sep=""),
+#            sep = ",", remove = T, extra = "warn", fill = "right") %>% 
+#   keep(~!all(is.na(.))) %>% 
+#   pivot_longer(cols = starts_with("ens_vep"), names_to = NULL, values_to = "ens_vep") %>% 
+#   drop_na(ens_vep)
+
+# head(gnomad_decoded2 %>% select(IDs, ens_vep))
+```
+
+VEP contains these information :  
 `"Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "`
   `cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "`
   `STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "`
@@ -289,50 +371,47 @@ For each VEP, we now have access to these information :
 # SAS_MAF|AA_MAF|EA_MAF|ExAC_MAF|ExAC_Adj_MAF|ExAC_AFR_MAF|ExAC_AMR_MAF|ExAC_EAS_MAF|ExAC_FIN_MAF|
 # ExAC_NFE_MAF|ExAC_OTH_MAF|ExAC_SAS_MAF|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|
 # HIGH_INF_POS|MOTIF_SCORE_CHANGE|LoF|LoF_filter|LoF_flags|LoF_info
-ens_vep_var_names <- c("Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "
-  cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "
-  STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "
-  TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "
-  SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "
-  ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "
-  HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info")
+# ens_vep_var_names <- c("Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "
+#   cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "
+#   STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "
+#   TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "
+#   SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "
+#   ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "
+#   HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info")
+# 
+# gnomad_decoded3 <- gnomad_decoded2 %>% 
+#   separate(col = ens_vep, into = ens_vep_var_names,
+#            # paste("ens_vep", 1:100, sep=""),
+#            sep = "\\|", remove = F, extra = "warn", fill = "right")
 
-gnomad_decoded3 <- gnomad_decoded2 %>% 
-  separate(col = ens_vep, into = ens_vep_var_names,
-           # paste("ens_vep", 1:100, sep=""),
-           sep = "\\|", remove = F, extra = "warn", fill = "right")
-
-head(gnomad_decoded3 %>% select(IDs, "Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "
-  cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "
-  STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "
-  TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "
-  SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "
-  ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "
-  HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info"))
+head(gnomad_decoded3 %>% select(IDs, "Allele": "LoF_info"))
 ```
 
 <!-- What are the ones you are interested in (I can keep them all of course) and how can I filter the variant we want.   -->
-There is multiple type of `Consequence`.
+There are multiple types of `Consequence`.
 ```{r}
 table(gnomad_decoded3$Consequence)
 
 # table(gnomad_decoded3$SYMBOL)
 
-gnomad_decoded4 <- gnomad_decoded3 %>% 
-  filter(!str_detect(Consequence, "3_prime_UTR_variant|5_prime_UTR_variant") #| IDs == "All individuals"#, SYMBOL == "DNMT3A"
-         )
+gnomad_decoded4 <- gnomad_decoded3 # %>% 
+  # filter(!str_detect(Consequence, "3_prime_UTR_variant|5_prime_UTR_variant") #| IDs == "All individuals"#, SYMBOL == "DNMT3A"
+  #        )
 ```
-I only selected the variants not in 3 and 5' for now. I am keeping everything else as you said.  
+<!-- We could select the variants not in 3 and 5' for example -->
 <!-- Let me know if I am correct and if I can be more selective.   -->
 <!-- But we have the same thing for HGVSc, HGVSp (I think we only keep the HGVSp...) -->
 
-# 2. Distribution plots
+<br>
+<br>
 
-I found a way to create a continuous data from the binned data without assuming for a type of distribution.  
-I first plotted a `geom_smooth()` plot which fit the best the binned data and used the `ggplot_build()` function to get the data set that ggplot used to plot it.  
-I want to find a way to don't have < 0 value in the smooth line. Let me know if you like this way of getting the continuous data and I will work on that.  
-With this continuous data, I was able to do a t-test.  
-`r emo::ji("question_mark")` Question : You talked about doing a bootstrap t-test but it looks like I am able to do it with the common `t.test()` function. Should I still try a bootstrap?
+***
+
+<br>
+
+# II. Distribution plots
+
+In here, I show the distribution of all the variants which as a consequence in DNMT3A gene
 
 <!-- In purple is the distribution of each variant. In yellow is the reference distribution. I wrote the skewness value at the bottom left. -->
 
@@ -426,7 +505,7 @@ for(i in unique(data_p$IDs)) {
 
 ***
 
-# 3.Selected variants with t test ≤ 0.05
+# III.Selected variants with t test ≤ 0.05
 ```{r, fig.height= 3, fig.width=7}
 selected_variants <- gnomad_decoded4 %>% 
   filter(t_test <= 0.05)
@@ -472,7 +551,7 @@ for(i in unique(selected_variants$IDs)) {
 }
 ```
 
-# 4. Extract allele count and frequency variables on the selected variants
+# IV. Extract allele count and frequency variables on the selected variants
 ```{r, print}
 selected_variants <- selected_variants %>%
   select(c("IDs", "ID", "INFO")) %>% 
