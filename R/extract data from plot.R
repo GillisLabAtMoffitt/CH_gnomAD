@@ -1,7 +1,9 @@
-data_plot <- gnomad_decoded %>% 
+data_plot <- gnomad_decoded4 %>% 
   distinct(IDs, age_bin, .keep_all = TRUE) %>% 
   filter(IDs == "2-25328714-C-G" | IDs == "All individuals") %>% 
-  select("IDs", "nbr_individuals", "age_bin", "sample_count",starts_with("sample_density"), sample_frequency, center)
+  select("IDs", "nbr_individuals", "age_bin", "sample_count",starts_with("sample_density"),
+         AN_samples_count, AN,
+         sample_frequency, age_bin, variant_frequency)
 
 data_plot %>% 
   ggplot(aes(x = age_bin, y= sample_count, fill= IDs))+
