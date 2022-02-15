@@ -92,29 +92,66 @@ gnomad_decoded <- gnomad %>%
   # bin edges are: 30.0|35.0|40.0|45.0|50.0|55.0|60.0|65.0|70.0|75.0|80.0; 
   # total number of individuals of any genotype bin: 2547|3423|4546|8487|10355|12693|11933|10534|8882|5991|4136|1935">
   mutate(age_hist_het_bin_freq = str_match(INFO, "age_hist_het_bin_freq=(.*?);")[,2]) %>%
-  
   # "Count of age values falling below lowest histogram bin edge for heterozygous individuals">
-  mutate("<30" = as.numeric(str_match(INFO, "age_hist_het_n_smaller=(.*?);")[,2])) %>%
+  mutate("<30_het" = as.numeric(str_match(INFO, "age_hist_het_n_smaller=(.*?);")[,2])) %>%
   # "Count of age values falling above highest histogram bin edge for heterozygous individuals">
-  mutate(">80" = as.numeric(str_match(INFO, "age_hist_het_n_larger=(.*?);")[,2])) %>% 
-  
+  mutate(">80_het" = as.numeric(str_match(INFO, "age_hist_het_n_larger=(.*?);")[,2])) %>% 
   add_row("IDs"="All individuals", "ID"="All individuals",
           "age_hist_het_bin_freq"= "3423|4546|8487|10355|12693|11933|10534|8882|5991|4136",
-          "<30" = 2547, ">80" = 1935) %>%
-  
+          "<30_het" = 2547, ">80_het" = 1935) %>%
   separate(col = age_hist_het_bin_freq,
-           into = c("30-35","35-40","40-45","45-50","50-55","55-60","60-65","65-70","70-75","75-80"), 
+           into = c("30-35_het","35-40_het","40-45_het","45-50_het",
+                    "50-55_het","55-60_het","60-65_het","65-70_het",
+                    "70-75_het","75-80_het"), 
+           sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>% 
+  mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>% 
+  # Filter variant found in more than 10 individuals
+  mutate(nbr_individuals_het = rowSums(select(.,`30-35_het`:`>80_het`), na.rm = TRUE)) %>% 
+  
+  
+  mutate(age_hist_hom_bin_freq = str_match(INFO, "age_hist_hom_bin_freq=(.*?);")[,2]) %>%
+  # "Count of age values falling below lowest histogram bin edge for homozygous individuals">
+  mutate("<30_hom" = as.numeric(str_match(INFO, "age_hist_hom_n_smaller=(.*?);")[,2])) %>%
+  # "Count of age values falling above highest histogram bin edge for homozygous individuals">
+  mutate(">80_hom" = as.numeric(str_match(INFO, "age_hist_hom_n_larger=(.*?);")[,2])) %>% 
+  add_row("IDs"="All individuals", "ID"="All individuals",
+          "age_hist_hom_bin_freq"= "3423|4546|8487|10355|12693|11933|10534|8882|5991|4136",
+          "<30_hom" = 2547, ">80_hom" = 1935) %>%
+  separate(col = age_hist_hom_bin_freq,
+           into = c("30-35_hom","35-40_hom","40-45_hom","45-50_hom",
+                    "50-55_hom","55-60_hom","60-65_hom","65-70_hom",
+                    "70-75_hom","75-80_hom"), 
            sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>% 
   mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>% 
   
   # Filter variant found in more than 10 individuals
-  mutate(nbr_individuals = rowSums(select(.,`30-35`:`>80`), na.rm = TRUE)) %>% 
-  filter(nbr_individuals > 10) %>%
+  mutate(nbr_individuals_hom = rowSums(select(.,`30-35_hom`:`>80_hom`), na.rm = TRUE)) %>%
+  
+  
+  mutate("<30" = rowSums(select(.,`30-35_het`,`30-35_hom`), na.rm = TRUE),
+         "30-35" = rowSums(select(.,`30-35_het`,`30-35_hom`), na.rm = TRUE),
+         "35-40" = rowSums(select(.,`35-40_het`,`35-40_hom`), na.rm = TRUE),
+         "40-45" = rowSums(select(.,`40-45_het`,`40-45_hom`), na.rm = TRUE),
+         "45-50" = rowSums(select(.,`45-50_het`,`45-50_hom`), na.rm = TRUE),
+         "50-55" = rowSums(select(.,`50-55_het`,`50-55_hom`), na.rm = TRUE),
+         "55-60" = rowSums(select(.,`55-60_het`,`55-60_hom`), na.rm = TRUE),
+         "60-65" = rowSums(select(.,`60-65_het`,`60-65_hom`), na.rm = TRUE),
+         "65-70" = rowSums(select(.,`65-70_het`,`65-70_hom`), na.rm = TRUE),
+         "70-75" = rowSums(select(.,`70-75_het`,`70-75_hom`), na.rm = TRUE),
+         "75-80" = rowSums(select(.,`75-80_het`,`75-80_hom`), na.rm = TRUE),
+         ">80" = rowSums(select(.,`>80_het`,`>80_hom`), na.rm = TRUE),
+         ) %>%
+
+  
+  
+  
+  # Remove variants detected in than 10 individuals
+  filter(nbr_individuals_het > 10) %>%
   # Generate AN variable from the INFO var
   mutate(AN = str_match(INFO, "AN=(.*?);")[,2]) %>% 
   mutate(AN_samples_count = (as.numeric(AN) / 2)
     ) %>% 
-  mutate(AN_samples_count = coalesce(AN_samples_count, nbr_individuals)) %>% 
+  mutate(AN_samples_count = coalesce(AN_samples_count, nbr_individuals_het)) %>% 
   select(IDs, everything())
 ```
 
@@ -134,6 +171,12 @@ gnomad_decoded <- gnomad_decoded %>%
   mutate(age_bin = factor(age_bin, 
                           levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
                                      "55-60","60-65","65-70","70-75","75-80", ">80"))) %>% 
+  mutate(age_bin_het = factor(age_bin, 
+                          levels = c("<30_het", "30-35_het","35-40_het","40-45_het","45-50_het","50-55_het",
+                                     "55-60_het","60-65_het","65-70_het","70-75_het","75-80_het", ">80_het"))) %>% 
+  mutate(age_bin_hom = factor(age_bin, 
+                          levels = c("<30_hom", "30-35_hom","35-40_hom","40-45_hom","45-50_hom","50-55_hom",
+                                     "55-60_hom","60-65_hom","65-70_hom","70-75_hom","75-80_hom", ">80_hom"))) %>% 
   mutate(bin_age = case_when(age_bin == "<30" ~ 15, 
                             # The average age at diagnosis is 8 overall (ages 0 to 19), 
                             # 5 years old for children (aged 0 to 14), and 17 years old 
@@ -152,7 +195,7 @@ gnomad_decoded <- gnomad_decoded %>%
                             TRUE ~ 90
   )) %>% 
   # mutate(sample_density = sample_count / nbr_individuals) %>%
-  mutate(sample_frequency = sample_count / nbr_individuals) %>% 
+  mutate(sample_frequency = sample_count / nbr_individuals_het) %>% 
   mutate(variant_frequency = sample_count / AN_samples_count)
 ```
 We have data on `r gnomad_decoded %>% distinct(IDs) %>% nrow` DNMT3A variants.  
