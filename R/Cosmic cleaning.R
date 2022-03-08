@@ -3,9 +3,15 @@ library(tidyverse)
 
 # Load data
 path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
-cosmic_data <-
+# From COSMIC ANNOVAR
+annovar_cosmic_data <-
   read.delim(paste0(path, "/cosmic_raw_data/hg38_cosmic70.txt")) %>% 
   `colnames<-`(c("#Chr","Start","End","Ref","Alt","INFO"))
+# From COSMIC website
+cosmic_data <-
+  read.delim(paste0(path, "/cosmic_raw_data/CosmicMutantExport.tsv.gz")) #%>% 
+  # `colnames<-`(c("#Chr","Start","End","Ref","Alt","INFO"))
+
 head(cosmic_data, n = 30)
 
 # cosmic_data <-

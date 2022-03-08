@@ -61,7 +61,7 @@ library(gtsummary)
 ```{r load}
 path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
 gnomad <-
-  read.delim(paste0(path, "/gnomAD_raw_data/dnmt3a_data.vcf.gz"), 
+  read.delim(paste0(path, "/gnomAD_raw_data/five_chgenes_in_cosmicdata.vcf.gz"), 
              header = FALSE, 
              col.names = c("X.CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO"))
 ```
@@ -148,7 +148,6 @@ gnomad_decoded <- gnomad %>%
   mutate(AN = str_match(INFO, "AN=(.*?);")[,2]) %>% 
   mutate(AN_samples_count = (as.numeric(AN) / 2)
     ) %>% 
-  mutate(AN_samples_count = coalesce(AN_samples_count, nbr_individuals)) %>% 
   select(IDs, everything())
 ```
 
@@ -158,7 +157,7 @@ gnomad_decoded <- gnomad %>%
 **Should we remove variants tested (AN) in less than 500 samples?**</span>  
 
 ```{r, max.print = 30}
-head(gnomad_decoded %>% select(IDs, "<30_homhet", "30-35_homhet","35-40_homhet","40-45_homhet","45-50_homhet","50-55_homhet","55-60_homhet","60-65_homhet","65-70_homhet","70-75_homhet","75-80_homhet", ">80_homhet", everything() ))
+head(gnomad_decoded %>% select(IDs, "<30", "30-35","35-40","40-45","45-50","50-55","55-60","60-65","65-70","70-75","75-80", ">80", everything() ))
 ```
 
 ```{r}
@@ -254,15 +253,12 @@ mann_w <-  data.frame(matrix(nrow=1, ncol=0))
 set.seed(1234)
 for(i in unique(gnomad_decoded$IDs)) {
   
-  All <- gnomad_decoded %>% filter(IDs == "All individuals"#,
-                                   # age_bin != "<30",
-                                   # age_bin != ">80"
+  All <- gnomad_decoded %>% 
+    filter(IDs == "All individuals"
   ) %>% 
     mutate(IDs = "Reference")
   data_plot <- gnomad_decoded %>% 
-    filter(IDs == i#,
-           # age_bin != "<30",
-           # age_bin != ">80"
+    filter(IDs == i
     ) %>% 
     bind_rows(., All) %>% 
     select("IDs", "age_bin", sample_frequency, bin_age)
@@ -280,20 +276,14 @@ for(i in unique(gnomad_decoded$IDs)) {
   mutate(colour =  as.factor(colour)) %>% 
   mutate_if(is.numeric, ~replace(., is.na(.), 0))
 
-  # a <- p_ %>% filter(group == 1) %>% select(y)
-  # b <- p_ %>% filter(group == 2) %>% select(y)
   variant <- p_ %>% filter(group == 1)
   variant <- sample(variant$x, 180, prob = variant$y, replace = TRUE)
   ref <- p_ %>% filter(group == 2)
   ref <- sample(ref$x, 180, prob = ref$y, replace = TRUE)
   
-  # result <- wilcox.test(a$y, b$y, alternative = "greater")$p.value
   result <- wilcox.test(variant, ref, alternative = "greater")$p.value
   mann_w <- rbind(mann_w, result)
-  # result <- t.test(p_ %>% filter(group == 1) %>% select(y),
-  #                  p_ %>% filter(group == 2) %>% select(y),
-  #                  alternative = "greater"
-  #                  )$p.value
+
   result <- t.test(variant, ref, alternative = "greater")$p.value
   test_mean <- rbind(test_mean, result)
 
@@ -313,7 +303,7 @@ gnomad_decoded1 <- full_join(gnomad_decoded, test_mean, by = "IDs") %>%
 
 <!-- After selecting the samples with a skewed distribution, the number of DNMT3A variants is `r gnomad_decoded1 %>% distinct(IDs) %>% nrow`. For now, I kept all variants (see results in part II).    -->
 
-## 2. Filter variants with low sample size 
+## 2. Filter variants with low sample size?
 I extracted AN which is the “Total number of alleles in samples” (from data dictionary).
 
 (From GnomAD) "It is the denominator for allele frequency calculations (AN is allele number), which is 2x the number of individuals in gnomAD with either reference or alternate alleles at the variant site."
@@ -517,7 +507,11 @@ gnomad_decoded4 <- gnomad_decoded1 # %>%
 
 In here, I show the distribution of all the variants in DNMT3A gene
 
-<!-- In purple is the distribution of each variant. In yellow is the reference distribution. I wrote the skewness value at the bottom left. -->
+In red is the distribution of each variant. In cyan is the reference distribution. I wrote the Mann-Whitney and T test p values of comparing each variant age distribution to the reference population age distribution.
+```{r}
+gnomad_decoded4 <- gnomad_decoded4 %>% 
+  mutate(gene = str_match(gnomad_decoded4$INFO, "(DNMT3A|TET2|TP53)(.*?)$")[,2])
+```
 
 ```{r, fig.height= 3, fig.width=7}
 data_p <- gnomad_decoded4 %>% 
@@ -528,16 +522,13 @@ data_p <- gnomad_decoded4 %>%
 n <- 0
 for(i in unique(data_p$IDs)) {
   
-  All <- data_p %>% filter(IDs == "All individuals"#,
-           # age_bin != "<30",
-           # age_bin != ">80"
-           ) %>% mutate(IDs = "Reference")
+  All <- data_p %>% 
+    filter(IDs == "All individuals"
+           ) %>% 
+    mutate(IDs = "Reference")
   data_plot <- data_p %>% 
-    filter(IDs == i#,
-           # age_bin != "<30",
-           # age_bin != ">80"
-           )# %>% 
-    # bind_rows(., All)
+    filter(IDs == i
+           )
   n <- n + 1
   p <- data_plot %>% 
     ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+
@@ -547,12 +538,6 @@ for(i in unique(data_p$IDs)) {
                 )+
     labs(title = n)+
     ylim(0, max(data_plot$sample_frequency))+
-    # geom_text(
-    #   data    = data_plot,
-    #   mapping = aes(x = -Inf, y = -Inf, label = paste0("skewness=", round(skewness, 2))),
-    #   hjust   = 0,
-    #   vjust   = 0
-    # )+
     geom_smooth(data = All, aes(x = bin_age, y= sample_frequency, color= IDs), 
                 alpha= 0.5, se = FALSE, method = "loess",
                   # method.args=list(family=quasibinomial)#,
@@ -574,6 +559,20 @@ for(i in unique(data_p$IDs)) {
       hjust   = 0,
       vjust   = -5
     )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_individuals=", nbr_individuals)),
+      colour = "darkblue",
+      hjust   = 0,
+      vjust   = -min(data_plot$sample_frequency)
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene=", gene)),
+      colour = "darkgreen",
+      hjust   = -3,
+      vjust   = 0
+    )+
     theme_minimal()
   print(p)
 
@@ -585,73 +584,75 @@ for(i in unique(data_p$IDs)) {
 
 ***
 
-<!-- # III.Selected variants with Mann-Whitney ≤ 0.05 -->
-<!-- ```{r, fig.height= 3, fig.width=7} -->
-<!-- selected_variants <- gnomad_decoded4 %>%  -->
-<!--   filter(t_test <= 0.05) -->
-<!-- n <- 0 -->
-<!-- for(i in unique(selected_variants$IDs)) { -->
+# III.Selected variants with Mann-Whitney ≤ 0.05
+```{r, fig.height= 3, fig.width=7}
+selected_variants <- gnomad_decoded4 %>%
+  filter(mann_w <= 0.05)
+n <- 0
+for(i in unique(selected_variants$IDs)) {
 
-<!--   All <- gnomad_decoded1 %>% filter(IDs == "All individuals", -->
-<!--            str_detect(age_bin, "het") -->
-<!--            ) %>% mutate(IDs = "Reference") -->
-<!--   data_plot <- selected_variants %>%  -->
-<!--     filter(IDs == i, -->
-<!--            str_detect(age_bin, "het") -->
-<!--            ) -->
-<!--   n <- n + 1 -->
-<!--   p <- data_plot %>%  -->
-<!--     ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+ -->
-<!--     geom_smooth(alpha= 0.5, se = FALSE, method = "loess", -->
-<!--                 span = 0.6 -->
-<!--                 )+ -->
-<!--     labs(title = n)+ -->
-<!--     ylim(0, max(data_plot$sample_frequency))+ -->
-<!--     geom_smooth(data = All, aes(x = bin_age, y= sample_frequency, color= IDs),  -->
-<!--                 alpha= 0.5, se = FALSE, method = "loess", -->
-<!--                 span = 0.6 -->
-<!--                 )+ -->
-<!--     geom_col(data = data_plot ,aes(x= bin_age, y= sample_frequency), -->
-<!--              position = "identity", -->
-<!--              fill = "red", -->
-<!--              alpha = 0.1)+ -->
-<!--     geom_text( -->
-<!--       data    = data_plot, -->
-<!--       mapping = aes(x = -Inf, y = -Inf, label = paste0("t test = ", round(t_test, 3))), -->
-<!--       hjust   = 0, -->
-<!--       vjust   = -9 -->
-<!--     )+ -->
-<!--     geom_text( -->
-<!--       data    = data_plot, -->
-<!--       mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW=", round(mann_w, 3))), -->
-<!--       hjust   = 0, -->
-<!--       vjust   = -5 -->
-<!--     )+ -->
-<!--     theme_minimal() -->
-<!--   print(p) -->
+  All <- gnomad_decoded4 %>% 
+    filter(IDs == "All individuals"
+           ) %>% 
+    mutate(IDs = "Reference")
+  data_plot <- selected_variants %>%
+    filter(IDs == i
+           )
+  n <- n + 1
+  p <- data_plot %>%
+    ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+                span = 0.6
+                )+
+    labs(title = n)+
+    ylim(0, max(data_plot$sample_frequency))+
+    geom_smooth(data = All, aes(x = bin_age, y= sample_frequency, color= IDs),
+                alpha= 0.5, se = FALSE, method = "loess",
+                span = 0.6
+                )+
+    geom_col(data = data_plot ,aes(x= bin_age, y= sample_frequency),
+             position = "identity",
+             fill = "red",
+             alpha = 0.1)+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, 
+                    label = paste0("t test = ", round(t_test, 3))),
+      hjust   = 0,
+      vjust   = -9
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, 
+                    label = paste0("MannW=", round(mann_w, 3))),
+      hjust   = 0,
+      vjust   = -5
+    )+
+    theme_minimal()
+  print(p)
 
-<!-- } -->
-<!-- ``` -->
-<!-- <br> -->
-<!-- <br> -->
+}
+```
+<br>
+<br>
 
-<!-- *** -->
+***
 
-<!-- <br> -->
+<br>
 
-<!-- # IV. Cosmic data -->
+# IV. Cosmic data
 
-<!-- ```{r} -->
+```{r}
 
-<!-- ``` -->
-<!-- <br> -->
-<!-- <br> -->
+```
+<br>
+<br>
 
-<!-- *** -->
+***
 
-<!-- <br> -->
+<br>
 
-<!-- # V. Extract allele count and frequency variables on the selected variants (code ready for future analysis) -->
+# V. Extract allele count and frequency variables on the selected variants (code ready for future analysis)
 <!-- ```{r, print} -->
 <!-- # selected_variants <- selected_variants %>% -->
 <!-- #   select(c("IDs", "ID", "INFO")) %>%  -->
