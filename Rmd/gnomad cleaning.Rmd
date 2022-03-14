@@ -61,7 +61,7 @@ library(gtsummary)
 ```{r load}
 path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
 gnomad <-
-  read.delim(paste0(path, "/gnomAD_raw_data/five_chgenes_in_cosmicdata.vcf.gz"), 
+  read.delim(paste0(path, "/gnomAD_raw_data/five_chgenes_data.vcf.gz"), 
              header = FALSE, 
              col.names = c("X.CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO"))
 ```
@@ -584,10 +584,10 @@ for(i in unique(data_p$IDs)) {
 
 ***
 
-# III.Selected variants with Mann-Whitney ≤ 0.05
+# III.Selected variants with Mann-Whitney ≤ 0.1
 ```{r, fig.height= 3, fig.width=7}
 selected_variants <- gnomad_decoded4 %>%
-  filter(mann_w <= 0.05)
+  filter(mann_w <= 0.1)
 n <- 0
 for(i in unique(selected_variants$IDs)) {
 
