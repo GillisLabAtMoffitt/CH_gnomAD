@@ -505,12 +505,12 @@ gnomad_decoded4 <- gnomad_decoded1 # %>%
 
 # II. Distribution plots
 
-In here, I show the distribution of all the variants in DNMT3A gene
+In here, I show the distribution of all the variants in DNMT3A|TET2|TP53|ASXL1|PPM1D genes
 
 In red is the distribution of each variant. In cyan is the reference distribution. I wrote the Mann-Whitney and T test p values of comparing each variant age distribution to the reference population age distribution.
 ```{r}
 gnomad_decoded4 <- gnomad_decoded4 %>% 
-  mutate(gene = str_match(gnomad_decoded4$INFO, "(DNMT3A|TET2|TP53)(.*?)$")[,2])
+  mutate(gene = str_match(gnomad_decoded4$INFO, "(DNMT3A|TET2|TP53|ASXL1|PPM1D)(.*?)$")[,2])
 ```
 
 ```{r, fig.height= 3, fig.width=7}
@@ -627,6 +627,20 @@ for(i in unique(selected_variants$IDs)) {
                     label = paste0("MannW=", round(mann_w, 3))),
       hjust   = 0,
       vjust   = -5
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_individuals=", nbr_individuals)),
+      colour = "darkblue",
+      hjust   = 0,
+      vjust   = -min(data_plot$sample_frequency)
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene=", gene)),
+      colour = "darkgreen",
+      hjust   = -3,
+      vjust   = 0
     )+
     theme_minimal()
   print(p)
