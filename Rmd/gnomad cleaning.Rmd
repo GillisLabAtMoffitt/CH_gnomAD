@@ -61,7 +61,7 @@ library(gtsummary)
 ```{r load}
 path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
 gnomad <-
-  read.delim(paste0(path, "/gnomAD_raw_data/five_chgenes_data.vcf.gz"), 
+  read.delim(paste0(path, "/gnomAD_raw_data/dnmt3a_data.vcf.gz"), 
              header = FALSE, 
              col.names = c("X.CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO"))
 ```
@@ -74,7 +74,7 @@ head(gnomad)
 
 ***
 
-# I. Data extraction for variants selection
+# I. GnomAD data extraction for variants selection
 ## 1. Extract age to look for skewness
 
 
@@ -656,7 +656,51 @@ for(i in unique(selected_variants$IDs)) {
 
 # IV. Cosmic data
 
+```{r load}
+# cosmic <-
+#   read.delim(paste0(path, "/cosmic_raw_data/cosmic_DNMT3_data.vcf.gz"))
+# 
+# cosmic1000 <-
+#   read.delim(paste0(path, "/cosmic_raw_data/cosmic_head1000_data.txt"))
+
+cosmic <-
+  read.delim(paste0(path, "/cosmic_raw_data/cosmic_DNMT3_data.vcf.gz"), 
+             header = FALSE, 
+             col.names = c("Gene.name", "Accession.Number", "Gene.CDS.length", "HGNC.ID", "Sample.name", 
+                           "ID_sample", "ID_tumour", "Primary.site", "Site.subtype.1", "Site.subtype.2", 
+                           "Site.subtype.3", "Primary.histology", "Histology.subtype.1", "Histology.subtype.2", 
+                           "Histology.subtype.3", "Genome.wide.screen", "GENOMIC_MUTATION_ID", 
+                           "LEGACY_MUTATION_ID", "MUTATION_ID", "Mutation.CDS", "Mutation.AA", 
+                           "Mutation.Description", "Mutation.zygosity", "LOH", "GRCh", 
+                           "Mutation.genome.position", "Mutation.strand", "Resistance.Mutation", 
+                           "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status", "Pubmed_PMID", 
+                           "ID_STUDY", "Sample.Type", "Tumour.origin", "Age", "HGVSP", "HGVSC", "HGVSG"))
+
+classification <-
+  read_csv(paste0(path, "/cosmic_raw_data/classification.csv"))
+
+# annovar_cosmic_data <-
+#   read.delim(paste0(path, "/cosmic_raw_data/hg38_cosmic70.txt"))
+```
+
+As an example I selected all the variant DNMT3A. Here is a example of the raw data.
 ```{r}
+head(cosmic)
+```
+<br>
+
+```{r}
+# cosmic1 <- 
+  cosmic %>% 
+  separate(HGVSG, into = c("chr", "arm", "POS", "ALT"), sep = ":|\\.|>|delins|dup|del", remove = FALSE) %>% 
+  select("Gene.name", "Accession.Number", POS) %>% 
+  mutate(REF = str_match(POS, "([0-9]*)([a-z]*)"))
+  separate(POS, into = c("POS", "REF"), sep = ":|\\.|>|delins|dup|del", remove = FALSE) %>% 
+  # separate(Mutation.genome.position, into = c("chr", "start", "end"), sep = ":|-", remove = FALSE) %>% 
+  unite(IDs, c(chr, POS, REF, ALT), sep = "-", remove = FALSE) %>% 
+  select("Gene.name", "Accession.Number", "chr", "POS", "ALT", everything())
+
+
 
 ```
 <br>
