@@ -23,7 +23,7 @@ classification <-
 
 
 # Extract cosmic id, occurrence and occurrence site
-cosmic_data <- cosmic_data %>% 
+du1 <- annovar_cosmic_data %>% 
   mutate(cosmic_id = str_match(INFO, "ID=(.*?);")[,2]) %>% 
   mutate(occurrence = str_match(INFO, ";OCCURENCE=(.*?)$")[,2]) %>% 
   mutate(occ_sum = sapply(str_extract_all(occurrence, "(\\d)"),
