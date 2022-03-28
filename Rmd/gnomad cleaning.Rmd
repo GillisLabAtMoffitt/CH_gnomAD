@@ -578,16 +578,25 @@ for(i in unique(data_p$IDs)) {
 
 }
 ```
-
 <br>
 <br>
 
 ***
 
 # III.Selected variants with Mann-Whitney ≤ 0.1
-```{r, fig.height= 3, fig.width=7}
+## Data
+Our selected variants are:
+```{r}
 selected_variants <- gnomad_decoded4 %>%
   filter(mann_w <= 0.1)
+
+selected_variants
+```
+<br>
+
+## Plots
+```{r, fig.height= 3, fig.width=7}
+
 n <- 0
 for(i in unique(selected_variants$IDs)) {
 
@@ -660,9 +669,10 @@ selected_variants <- selected_variants %>%
 # IV. Cosmic data
 
 ```{r load cosmic}
-# cosmic <-
-#   read.delim(paste0(path, "/cosmic_raw_data/cosmic_DNMT3_data.vcf.gz"))
-# 
+# From Annovar
+# annovar_cosmic_data <-
+#   read.delim(paste0(path, "/cosmic_raw_data/hg38_cosmic70.txt"))
+
 # cosmic1000 <-
 #   read.delim(paste0(path, "/cosmic_raw_data/cosmic_head1000_data.txt"))
 
@@ -681,9 +691,6 @@ cosmic <-
 
 classification <-
   read_csv(paste0(path, "/cosmic_raw_data/classification.csv"))
-
-# annovar_cosmic_data <-
-#   read.delim(paste0(path, "/cosmic_raw_data/hg38_cosmic70.txt"))
 ```
 
 As an example I selected all the variant DNMT3A. Here is a example of the raw data.
@@ -694,7 +701,7 @@ head(cosmic)
 
 What are the variable you want in cosmic?
 ```{r}
-cosmic1 <-
+cosmic <-
   cosmic %>% 
   separate(HGVSG, into = c("chr", "chr_arm", "POS", "ALT"), sep = ":|\\.|>|delins|dup|del", remove = FALSE) %>% 
   mutate(REF = str_match(POS, "([0-9]*)([A-Z]*)")[,3]) %>% 
@@ -702,19 +709,24 @@ cosmic1 <-
          POS = as.numeric(POS)) %>% 
   # separate(Mutation.genome.position, into = c("chr", "start", "end"), sep = ":|-", remove = FALSE) %>% 
   unite(IDs, c(chr, POS, REF, ALT), sep = "-", remove = FALSE) %>% 
-  separate(HGVSG, into = c("ENSP", "p_prot_modif"), sep = ":", remove = FALSE) %>% 
+  # separate(HGVSG, into = c("ENSP", "p_prot_modif"), sep = ":", remove = FALSE) %>% 
   
   separate(`Gene.name`, into = c("gene_name_cosmic"), sep = "_", remove = FALSE) %>% 
   
   select("Gene.name", gene_name_cosmic, "Accession.Number", IDs, "chr", "POS", REF, "ALT", HGVSG, everything())
 
-colnames(cosmic1)
-head(cosmic1)
+colnames(cosmic)
+head(cosmic)
+```
 
+What are the variable you want in cosmic classification?
+```{r}
 colnames(classification)
 head(classification)
 ```
 
+As ypu can see we have multiple rows for 1 mutation so I calculated the occurrence of each mutation and pivot the data wider to have only 1 mutation per row before to bind with gnomAD.  
+But also multiple `HGVSP` for a single `chr, POS, REF, ALT`.   
 ```{r}
 # library(data.table)
 # final_cosmic <-
@@ -732,13 +744,13 @@ head(classification)
 #         )
 #   )
 
-final_cosmic1 <- cosmic1 %>% 
+final_cosmic <- cosmic %>% 
   group_by(gene_name_cosmic, IDs, chr, POS, REF, ALT) %>% 
   mutate(occurrence_in_cosmic = n())
 
-max_occurence = max(final_cosmic1$occurrence_in_cosmic)
-final_cosmic2 <- final_cosmic1 %>% 
-  group_by(gene_name_cosmic, IDs, chr, POS, REF, ALT, occurrence_in_cosmic) %>% 
+max_occurence = max(final_cosmic$occurrence_in_cosmic)
+final_cosmic <- final_cosmic %>% 
+  group_by(gene_name_cosmic, IDs, chr, POS, REF, ALT, HGVSP, occurrence_in_cosmic) %>% 
   summarise_at(vars(Mutation.CDS,
           Mutation.AA,
           Primary.site,
@@ -758,37 +770,247 @@ final_cosmic2 <- final_cosmic1 %>%
   mutate(average_age = rowMeans(select(., starts_with("Age")), na.rm = TRUE))
 ```
 
-Our selected variants:
-```{r}
-selected_variants
-```
 
-Bind with cosmic by : chr, POS, REF, ALT
-```{r}
+
+# Bind with cosmic by : chr, POS, REF, ALT
+## Data
+```{r bind cosmic Ids}
 CH_variants <- inner_join(selected_variants %>% 
                   select(-c(AN:t_test)), 
-                final_cosmic2, 
+                final_cosmic, 
           by = c("IDs", "X.CHROM" = "chr", "POS", "REF", "ALT"))
-head(CH_variants)
+CH_variants
 ```
 
-
-
-Bind with cosmic by : p.
+## Plots
 ```{r}
-# cosmic1 <-
-#   cosmic %>% 
-#   separate(HGVSG, into = c("chr", "chr_arm", "POS", "ALT"), sep = ":|\\.|>|delins|dup|del", remove = FALSE) %>% 
-#   mutate(REF = str_match(POS, "([0-9]*)([A-Z]*)")[,3]) %>% 
-#   mutate(POS = str_match(POS, "([0-9]*)([A-Z]*)")[,2],
-#          POS = as.numeric(POS)) %>% 
-#   # separate(Mutation.genome.position, into = c("chr", "start", "end"), sep = ":|-", remove = FALSE) %>% 
-#   unite(IDs, c(chr, POS, REF, ALT), sep = "-", remove = FALSE) %>% 
-#   separate(HGVSG, into = c("ENSP", "p_prot_modif"), sep = ":", remove = FALSE) %>% 
-#   select("Gene.name", "Accession.Number", IDs, "chr", "POS", REF, "ALT", HGVSG, everything())
+ids_plot <- paste0(CH_variants$IDs, collapse = "|")
+
+ids_plot <- gnomad_decoded4 %>%
+  filter(str_detect(IDs, ids_plot))
+
+n <- 0
+for(i in unique(ids_plot$IDs)) {
+
+  All <- gnomad_decoded4 %>% 
+    filter(IDs == "All individuals"
+           ) %>% 
+    mutate(IDs = "Reference")
+  data_plot <- ids_plot %>%
+    filter(IDs == i
+           )
+  n <- n + 1
+  p <- data_plot %>%
+    ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+                span = 0.6
+                )+
+    labs(title = n)+
+    ylim(0, max(data_plot$sample_frequency))+
+    geom_smooth(data = All, aes(x = bin_age, y= sample_frequency, color= IDs),
+                alpha= 0.5, se = FALSE, method = "loess",
+                span = 0.6
+                )+
+    geom_col(data = data_plot ,aes(x= bin_age, y= sample_frequency),
+             position = "identity",
+             fill = "red",
+             alpha = 0.1)+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, 
+                    label = paste0("t test = ", round(t_test, 3))),
+      hjust   = 0,
+      vjust   = -9
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, 
+                    label = paste0("MannW=", round(mann_w, 3))),
+      hjust   = 0,
+      vjust   = -5
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_individuals=", nbr_individuals)),
+      colour = "darkblue",
+      hjust   = 0,
+      vjust   = -min(data_plot$sample_frequency)
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene=", gene)),
+      colour = "darkgreen",
+      hjust   = -3,
+      vjust   = 0
+    )+
+    theme_minimal()
+  print(p)
+
+}
+```
+
+# Bind with cosmic by : protein change unavailable ~ p.
+Protein change is available in the VEP info of gnomAD.
+
+## 3. Extract VEP Consequence
+I extracted the VEP annotations data from `INFO`.
+But you can see that in VEP, we have multiple Variant Effect Predictor separated by a comma.
+```{r}
+selected_variants <- selected_variants %>%
+  mutate(ens_vep = str_match(INFO, ";vep=(.*?)$")[,2])
+
+head(selected_variants %>% select(ens_vep))[1:3,]
+```
+<!-- <br> -->
+
+<!-- Here an example of `Consequence` on gnomAD browser -->
+```{r, out.width='100%'}
+# knitr::include_graphics('/Users/colinccm/Documents/GitHub/Gillis/CH_gnomAD/variant effect predictor.jpg')
+```
+<!-- <br> -->
+
+
+<!-- I made 1 row for each Variant Effect Predictor so multiple rows per variants. -->
+```{r}
+selected_variants <- selected_variants %>%
+  separate(col = ens_vep, paste("ens_vep", 1:25, sep=""),
+           sep = ",", remove = T, extra = "warn", fill = "right") %>%
+  keep(~!all(is.na(.))) %>%
+  pivot_longer(cols = starts_with("ens_vep"), names_to = NULL, values_to = "ens_vep") %>%
+  drop_na(ens_vep)
+
+head(selected_variants %>% select(IDs, ens_vep))
+```
+
+VEP contains these information :
+`"Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "`
+  `cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "`
+  `STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "`
+  `TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "`
+  `SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "`
+  `ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "`
+  `HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info"`
+```{r}
+# Consequence annotations from Ensembl VEP
+# Format: Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|
+# cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|ALLELE_NUM|DISTANCE|
+# STRAND|FLAGS|VARIANT_CLASS|MINIMISED|SYMBOL_SOURCE|HGNC_ID|CANONICAL|TSL|APPRIS|CCDS|ENSP|SWISSPROT|
+# TREMBL|UNIPARC|GENE_PHENO|SIFT|PolyPhen|DOMAINS|HGVS_OFFSET|GMAF|AFR_MAF|AMR_MAF|EAS_MAF|EUR_MAF|
+# SAS_MAF|AA_MAF|EA_MAF|ExAC_MAF|ExAC_Adj_MAF|ExAC_AFR_MAF|ExAC_AMR_MAF|ExAC_EAS_MAF|ExAC_FIN_MAF|
+# ExAC_NFE_MAF|ExAC_OTH_MAF|ExAC_SAS_MAF|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|
+# HIGH_INF_POS|MOTIF_SCORE_CHANGE|LoF|LoF_filter|LoF_flags|LoF_info
+ens_vep_var_names <- c("Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "
+  cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "
+  STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "
+  TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "
+  SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "
+  ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "
+  HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info")
+
+selected_variants <- selected_variants %>%
+  separate(col = ens_vep, into = ens_vep_var_names,
+           # paste("ens_vep", 1:100, sep=""),
+           sep = "\\|", remove = F, extra = "warn", fill = "right")
+
+head(selected_variants %>% select(IDs, "Allele": "LoF_info"))
+```
+
+## Extract p. from HGVSp
+`r emo::ji("warning")` It is some protein change infp unavailable.
+```{r}
+# VEP_extracted <- gnomad_decoded3 %>% 
+#   mutate(protein_change_nomenclature = str_match(HGVSp, ":(.*?)$")[,2])
+```
+
+## data
+```{r bind cosmic p}
+CH_variants_p <- inner_join(selected_variants %>% 
+                  select(-c(AN:t_test)), 
+                final_cosmic, 
+          by = c("HGVSp" = "HGVSP"))
+CH_variants_p
+```
+
+## plots
+```{r}
+ids_plot <- paste0(CH_variants_p$IDs, collapse = "|")
+
+ids_plot <- selected_variants %>%
+  filter(str_detect(IDs, ids_plot))
+
+n <- 0
+for(i in unique(ids_plot$IDs)) {
+
+  All <- gnomad_decoded4 %>% 
+    filter(IDs == "All individuals"
+           ) %>% 
+    mutate(IDs = "Reference")
+  data_plot <- ids_plot %>%
+    filter(IDs == i
+           )
+  n <- n + 1
+  p <- data_plot %>%
+    ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+                span = 0.6
+                )+
+    labs(title = n)+
+    ylim(0, max(data_plot$sample_frequency))+
+    geom_smooth(data = All, aes(x = bin_age, y= sample_frequency, color= IDs),
+                alpha= 0.5, se = FALSE, method = "loess",
+                span = 0.6
+                )+
+    geom_col(data = data_plot ,aes(x= bin_age, y= sample_frequency),
+             position = "identity",
+             fill = "red",
+             alpha = 0.1)+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, 
+                    label = paste0("t test = ", round(t_test, 3))),
+      hjust   = 0,
+      vjust   = -9
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, 
+                    label = paste0("MannW=", round(mann_w, 3))),
+      hjust   = 0,
+      vjust   = -5
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_individuals=", nbr_individuals)),
+      colour = "darkblue",
+      hjust   = 0,
+      vjust   = -min(data_plot$sample_frequency)
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene=", gene)),
+      colour = "darkgreen",
+      hjust   = -3,
+      vjust   = 0
+    )+
+    theme_minimal()
+  print(p)
+
+}
 ```
 
 
+<!-- # Bind with cosmic by : p. -->
+<!-- For that I need to extract VEP info -->
+
+<!-- ## 3. Extract VEP Consequence -->
+<!-- I extracted the VEP annotations data from `INFO`. -->
+<!-- But you can see that in VEP, we have multiple Variant Effect Predictor separated by a comma. -->
+<!-- ```{r} -->
+<!-- selected_variants <- selected_variants %>% -->
+<!--   mutate(ens_vep = str_match(INFO, ";vep=(.*?)$")[,2]) -->
+
+<!-- head(selected_variants %>% select(ens_vep))[1:3,] -->
+<!-- ``` -->
 
 <br>
 <br>
@@ -798,7 +1020,7 @@ Bind with cosmic by : p.
 <br>
 
 # V. Extract allele count and frequency variables on the selected variants (code ready for future analysis)
-```{r, print}
+```{r, extract allele count and frequency}
 CH_variants <- CH_variants %>%
   # select(c("IDs", "ID", "INFO")) %>%
   distinct(IDs, .keep_all = TRUE) %>%
@@ -873,9 +1095,8 @@ CH_variants <- CH_variants %>%
   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2])
 ```
 
-
-```{r, rows.print=30}
-# selected_variants
+```{r}
+head(CH_variants)
 ```
 
 
