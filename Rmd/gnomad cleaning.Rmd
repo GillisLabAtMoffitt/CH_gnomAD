@@ -785,17 +785,17 @@ head(classification)
 # V.Bind with cosmic by : chr, POS, REF, ALT
 ## Data
 ```{r bind cosmic Ids}
-CH_variants <- inner_join(selected_variants %>% 
+CH_variants_cpra <- inner_join(selected_variants %>% 
                   select(-c(AN:t_test)), 
                 final_cosmic, 
           by = c("IDs", "X.CHROM" = "chr", "POS", "REF", "ALT"))
-CH_variants %>% select(IDs, HGVSP, everything())
+CH_variants_cpra %>% select(IDs, HGVSP, everything())
 ```
-We have `r length(unique(CH_variants$IDs))` but with at total of `r length(unique(CH_variants$HGVSP))` HGVSP.
+We have `r length(unique(CH_variants_cpra$IDs))` but with at total of `r length(unique(CH_variants_cpra$HGVSP))` HGVSP.
 
 ## Plots
 ```{r}
-ids_plot <- paste0(CH_variants$IDs, collapse = "|")
+ids_plot <- paste0(CH_variants_cpra$IDs, collapse = "|")
 
 ids_plot <- gnomad_decoded4 %>%
   filter(str_detect(IDs, ids_plot))
@@ -860,7 +860,7 @@ for(i in unique(ids_plot$IDs)) {
 }
 ```
 
-# V.Bind with cosmic by : protein change unavailable ~ p.
+# VI.Bind with cosmic by : protein change unavailable ~ p.
 Protein change is available in the VEP info of gnomAD.
 
 ## 3. Extract VEP Consequence
@@ -935,13 +935,15 @@ head(selected_variants1 %>% select(IDs, HGVSp, "Allele": "LoF_info"))
 
 ## Data
 ```{r bind cosmic p}
-# CH_variants_p <- inner_join(selected_variants1 %>% 
-#                   select(-c(AN:t_test)), 
-#                 final_cosmic, 
-#           by = c("HGVSp" = "HGVSP")) # "IDs", "X.CHROM" = "chr", "POS", "REF", "ALT"
+CH_variants_p <- inner_join(selected_variants1 %>% 
+                  filter(HGVSp != "") %>%
+                  select(-c(AN:t_test)),
+                final_cosmic %>% 
+                  filter(HGVSP != ""),
+          by = c("HGVSp" = "HGVSP"))
 
 # write_rds(CH_variants_p, "CH_variants_p.rds")
-CH_variants_p <- read_rds("/Users/colinccm/Documents/GitHub/Gillis/CH_gnomAD/CH_variants_p.rds")
+# CH_variants_p <- read_rds("/Users/colinccm/Documents/GitHub/Gillis/CH_gnomAD/CH_variants_p.rds")
 ```
 
 
@@ -951,12 +953,16 @@ head(CH_variants_p %>% select(HGVSp, starts_with("IDs"), X.CHROM, chr, starts_wi
 We have `r length(unique(CH_variants_p$IDs.x))` but with at total of `r length(unique(CH_variants_p$HGVSp))` HGVSP.
 <span style="color:red">**A protein change can be acquired by different mutation.**</span>
 
-
 ## Plots
-```{r}
-ids_plot <- paste0(CH_variants_p$IDs, collapse = "|")
+```{r plot CH_variants_p}
+CH_variants_p <- CH_variants_p %>% 
+  distinct(IDs.x, .keep_all = TRUE)
+```
 
-ids_plot <- selected_variants %>%
+```{r}
+ids_plot <- paste0(CH_variants_p$IDs.x, collapse = "|")
+
+ids_plot <- gnomad_decoded4 %>%
   filter(str_detect(IDs, ids_plot))
 
 n <- 0
@@ -1021,89 +1027,125 @@ for(i in unique(ids_plot$IDs)) {
 <br>
 <br>
 
+```{r}
+rm(CH_variants_p)
+```
+
+
 ***
 
 <br>
 
-<!-- # V. Extract allele count and frequency variables on the selected variants (code ready for future analysis) USING `chr+POS+REF+ALT` binding -->
-<!-- ```{r, extract allele count and frequency} -->
-<!-- CH_variants <- CH_variants %>% -->
-<!--   # select(c("IDs", "ID", "INFO")) %>% -->
-<!--   distinct(IDs, .keep_all = TRUE) %>% -->
-<!--   # Generate allele count variables from the INFO var -->
-<!--   mutate(alt_allele_count = str_match(INFO, "AC=(.*?);")[,2]) %>% -->
-<!--   mutate(alt_allele_count_afr_female = str_match(INFO, "AC_female=(.*?);")[,2]) %>% -->
-<!--   mutate(alt_allele_count_male = str_match(INFO, "AC_male=(.*?);")[,2]) %>% -->
+# VII. Extract cancer characteristics for selected variants USING `chr+POS+REF+ALT` binding
+We want to extract primary site and histology of the tumor for each mutation in cosmic.  
 
-<!--   mutate(alt_allele_count_afr = str_match(INFO, "AC_afr=(.*?);")[,2]) %>% -->
-<!--   mutate(alt_allele_count_afr_female = str_match(INFO, "AC_afr_female=(.*?);")[,2]) %>% -->
-<!--   mutate(alt_allele_count_male = str_match(INFO, "AC_afr_male=(.*?);")[,2]) %>% -->
+Need to use either of those id in CosmicMutantExport: 
+Sample.name = RK131_C01, ID_sample = 2120979, ID_tumour = 1995215, GENOMIC_MUTATION_ID = COSV74182898, LEGACY_MUTATION_ID = COSM or COSN, MUTATION_ID = 100426914
 
-<!--   mutate(alt_allele_count_afr = str_match(INFO, "AC_amr=(.*?);")[,2]) %>% -->
-<!--   mutate(alt_allele_count_afr_female = str_match(INFO, "AC_amr_female=(.*?);")[,2]) %>% -->
-<!--   mutate(alt_allele_count_male = str_match(INFO, "AC_amr_male=(.*?);")[,2]) %>% -->
+We could use CosmicSample which has:
+phenotype_id = 32666056, sample_id = 732412, sample_name = cor-19, id_tumor = 656400, id_individual = 637439
 
-<!--   # Generate allele count variables from the INFO var -->
-<!--   mutate(freq_allele_count = str_match(INFO, "AF=(.*?);")[,2]) %>% -->
-<!--   mutate(freq_allele_count_afr_female = str_match(INFO, "AF_female=(.*?);")[,2]) %>% -->
-<!--   mutate(freq_allele_count_male = str_match(INFO, "AF_male=(.*?);")[,2]) %>% -->
+CosmicMutationTracking has MUTATION_ID = 139363701, LEGACY_MUTATION_ID = COSM or COSN, GENOMIC_MUTATION_ID = COSV
 
-<!--   mutate(freq_allele_count_afr = str_match(INFO, "AF_afr=(.*?);")[,2]) %>% -->
-<!--   mutate(freq_allele_count_afr_female = str_match(INFO, "AF_afr_female=(.*?);")[,2]) %>% -->
-<!--   mutate(freq_allele_count_male = str_match(INFO, "AF_afr_male=(.*?);")[,2]) %>% -->
+classification only has phenotype_id
 
-<!--   mutate(freq_allele_count_afr = str_match(INFO, "AF_amr=(.*?);")[,2]) %>% -->
-<!--   mutate(freq_allele_count_afr_female = str_match(INFO, "AF_amr_female=(.*?);")[,2]) %>% -->
-<!--   mutate(freq_allele_count_male = str_match(INFO, "AF_amr_male=(.*?);")[,2]) %>% -->
+All have primary site etc...
+```{r}
+CosmicSample <-
+  read.delim(paste0(path, "/cosmic_raw_data/example_grch38_cosmic/CosmicSample.tsv"))
 
-<!--   # Depth of informative coverage for each sample -->
-<!--   mutate(freq_allele_count = str_match(INFO, "DP=(.*?);")[,2]) %>% -->
-<!--   # GQ -->
+inner_join(CH_variants_cpra, CosmicSample, by = c("Sample.name" = "sample_name"))
 
 
 
-<!--   # allele type -->
-<!--   mutate(allele_type = str_match(INFO, "allele_type=(.*?);")[,2]) %>% -->
-<!--   # variant type -->
-<!--   mutate(variant_type = str_match(INFO, "variant_type=(.*?);")[,2]) %>% -->
-<!--   # Number=A,Type=String,Description="Population with maximum AF in the controls subset"> -->
-<!--   mutate(controls_popmax = str_match(INFO, "controls_popmax=(.*?);")[,2]) %>% -->
+CosmicMutationTracking <-
+  read.delim(paste0(path, "/cosmic_raw_data/example_grch38_cosmic/CosmicMutationTracking.tsv"))
+
+inner_join(CH_variants_cpra, CosmicMutationTracking, by = "GENOMIC_MUTATION_ID")
+```
 
 
-<!--   ## NON CANCER -->
-<!--   # Generate allele count variables from the INFO var -->
-<!--   mutate(nc_alt_allele_count = str_match(INFO, "non_cancer_AC=(.*?);")[,2]) %>% -->
-<!--   mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_female=(.*?);")[,2]) %>% -->
-<!--   mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_male=(.*?);")[,2]) %>% -->
 
-<!--   mutate(nc_alt_allele_count_afr = str_match(INFO, "non_cancer_AC_afr=(.*?);")[,2]) %>% -->
-<!--   mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_afr_female=(.*?);")[,2]) %>% -->
-<!--   mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_afr_male=(.*?);")[,2]) %>% -->
 
-<!--   mutate(nc_alt_allele_count_afr = str_match(INFO, "non_cancer_AC_amr=(.*?);")[,2]) %>% -->
-<!--   mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_amr_female=(.*?);")[,2]) %>% -->
-<!--   mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_amr_male=(.*?);")[,2]) %>% -->
+# VIII. Extract allele count and frequency variables on the selected variants (code ready for future analysis) USING `chr+POS+REF+ALT` binding
+```{r, extract allele count and frequency}
+CH_variants <- CH_variants %>%
+  # select(c("IDs", "ID", "INFO")) %>%
+  distinct(IDs, .keep_all = TRUE) %>%
+  # Generate allele count variables from the INFO var
+  mutate(alt_allele_count = str_match(INFO, "AC=(.*?);")[,2]) %>%
+  mutate(alt_allele_count_afr_female = str_match(INFO, "AC_female=(.*?);")[,2]) %>%
+  mutate(alt_allele_count_male = str_match(INFO, "AC_male=(.*?);")[,2]) %>%
 
-<!--   # Generate allele count variables from the INFO var -->
-<!--   mutate(nc_freq_allele_count = str_match(INFO, "non_cancer_AF=(.*?);")[,2]) %>% -->
-<!--   mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_female=(.*?);")[,2]) %>% -->
-<!--   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_male=(.*?);")[,2]) %>% -->
+  mutate(alt_allele_count_afr = str_match(INFO, "AC_afr=(.*?);")[,2]) %>%
+  mutate(alt_allele_count_afr_female = str_match(INFO, "AC_afr_female=(.*?);")[,2]) %>%
+  mutate(alt_allele_count_male = str_match(INFO, "AC_afr_male=(.*?);")[,2]) %>%
 
-<!--   mutate(nc_freq_allele_count_afr = str_match(INFO, "non_cancer_AF_afr=(.*?);")[,2]) %>% -->
-<!--   mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_afr_female=(.*?);")[,2]) %>% -->
-<!--   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_afr_male=(.*?);")[,2]) %>% -->
+  mutate(alt_allele_count_afr = str_match(INFO, "AC_amr=(.*?);")[,2]) %>%
+  mutate(alt_allele_count_afr_female = str_match(INFO, "AC_amr_female=(.*?);")[,2]) %>%
+  mutate(alt_allele_count_male = str_match(INFO, "AC_amr_male=(.*?);")[,2]) %>%
 
-<!--   mutate(nc_freq_allele_count_afr = str_match(INFO, "non_cancer_AF_amr=(.*?);")[,2]) %>% -->
-<!--   mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_amr_female=(.*?);")[,2]) %>% -->
-<!--   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_amr_male=(.*?);")[,2]) %>% -->
+  # Generate allele count variables from the INFO var
+  mutate(freq_allele_count = str_match(INFO, "AF=(.*?);")[,2]) %>%
+  mutate(freq_allele_count_afr_female = str_match(INFO, "AF_female=(.*?);")[,2]) %>%
+  mutate(freq_allele_count_male = str_match(INFO, "AF_male=(.*?);")[,2]) %>%
 
-<!--   # "Total number of alleles in samples in the non_cancer subset, before removing low-confidence genotypes"> -->
-<!--   mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2]) -->
-<!-- ``` -->
+  mutate(freq_allele_count_afr = str_match(INFO, "AF_afr=(.*?);")[,2]) %>%
+  mutate(freq_allele_count_afr_female = str_match(INFO, "AF_afr_female=(.*?);")[,2]) %>%
+  mutate(freq_allele_count_male = str_match(INFO, "AF_afr_male=(.*?);")[,2]) %>%
 
-<!-- ```{r} -->
-<!-- head(CH_variants) -->
-<!-- ``` -->
+  mutate(freq_allele_count_afr = str_match(INFO, "AF_amr=(.*?);")[,2]) %>%
+  mutate(freq_allele_count_afr_female = str_match(INFO, "AF_amr_female=(.*?);")[,2]) %>%
+  mutate(freq_allele_count_male = str_match(INFO, "AF_amr_male=(.*?);")[,2]) %>%
+
+  # Depth of informative coverage for each sample
+  mutate(freq_allele_count = str_match(INFO, "DP=(.*?);")[,2]) %>%
+  # GQ
+
+
+
+  # allele type
+  mutate(allele_type = str_match(INFO, "allele_type=(.*?);")[,2]) %>%
+  # variant type
+  mutate(variant_type = str_match(INFO, "variant_type=(.*?);")[,2]) %>%
+  # Number=A,Type=String,Description="Population with maximum AF in the controls subset">
+  mutate(controls_popmax = str_match(INFO, "controls_popmax=(.*?);")[,2]) %>%
+
+
+  ## NON CANCER
+  # Generate allele count variables from the INFO var
+  mutate(nc_alt_allele_count = str_match(INFO, "non_cancer_AC=(.*?);")[,2]) %>%
+  mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_female=(.*?);")[,2]) %>%
+  mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_male=(.*?);")[,2]) %>%
+
+  mutate(nc_alt_allele_count_afr = str_match(INFO, "non_cancer_AC_afr=(.*?);")[,2]) %>%
+  mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_afr_female=(.*?);")[,2]) %>%
+  mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_afr_male=(.*?);")[,2]) %>%
+
+  mutate(nc_alt_allele_count_afr = str_match(INFO, "non_cancer_AC_amr=(.*?);")[,2]) %>%
+  mutate(nc_alt_allele_count_afr_female = str_match(INFO, "non_cancer_AC_amr_female=(.*?);")[,2]) %>%
+  mutate(nc_alt_allele_count_male = str_match(INFO, "non_cancer_AC_amr_male=(.*?);")[,2]) %>%
+
+  # Generate allele count variables from the INFO var
+  mutate(nc_freq_allele_count = str_match(INFO, "non_cancer_AF=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_female=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_male=(.*?);")[,2]) %>%
+
+  mutate(nc_freq_allele_count_afr = str_match(INFO, "non_cancer_AF_afr=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_afr_female=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_afr_male=(.*?);")[,2]) %>%
+
+  mutate(nc_freq_allele_count_afr = str_match(INFO, "non_cancer_AF_amr=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_afr_female = str_match(INFO, "non_cancer_AF_amr_female=(.*?);")[,2]) %>%
+  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_amr_male=(.*?);")[,2]) %>%
+
+  # "Total number of alleles in samples in the non_cancer subset, before removing low-confidence genotypes">
+  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2])
+```
+
+```{r}
+head(CH_variants)
+```
 
 
 
