@@ -387,107 +387,10 @@ gnomad_decoded1 <- full_join(gnomad_decoded, test_mean, by = "IDs") %>%
 <!--   ) -->
 <!-- ``` -->
 
+
+
+
 ```{r}
-# gnomad_decoded2a <- gnomad_decoded1 %>% 
-#   mutate(ens_vep = str_match(INFO, ";vep=(.*?)$")[,2])
-# gnomad_decoded2b <- gnomad_decoded2a %>% 
-#   separate(col = ens_vep, paste("ens_vep", 1:25, sep=""),
-#            sep = ",", remove = T, extra = "warn", fill = "right") %>% 
-#   keep(~!all(is.na(.))) %>% 
-#   pivot_longer(cols = starts_with("ens_vep"), names_to = NULL, values_to = "ens_vep") %>% 
-#   drop_na(ens_vep)
-# 
-# ens_vep_var_names <- c("Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "
-#   cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "
-#   STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "
-#   TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "
-#   SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "
-#   ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "
-#   HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info")
-# 
-# gnomad_decoded3 <- gnomad_decoded2b %>% 
-#   separate(col = ens_vep, into = ens_vep_var_names,
-#            # paste("ens_vep", 1:100, sep=""),
-#            sep = "\\|", remove = F, extra = "warn", fill = "right")
-```
-
-<!-- <br> -->
-<!-- <br> -->
-
-<!-- *** -->
-
-<!-- <br> -->
-
-<!-- ## 3. Filtering out Consequence  -->
-<!-- We could filtered out `Consequence` in the 3_prime_UTR_variant or 5_prime_UTR_variant.   -->
-<!-- I extracted the VEP annotations data from `INFO`.   -->
-<!-- But you can see that in VEP, we have multiple Variant Effect Predictor separated by a comma. -->
-```{r}
-# # gnomad_decoded2 <- gnomad_decoded1 %>% 
-# #   mutate(ens_vep = str_match(INFO, ";vep=(.*?)$")[,2])
-# 
-# head(gnomad_decoded2a %>% select(ens_vep))[1:3,]
-```
-<!-- <br> -->
-
-<!-- Here an example of `Consequence` on gnomAD browser -->
-```{r, out.width='100%'}
-# knitr::include_graphics('/Users/colinccm/Documents/GitHub/Gillis/CH_gnomAD/variant effect predictor.jpg')
-```
-<!-- <br> -->
-
-
-<!-- I made 1 row for each Variant Effect Predictor so multiple rows per variants. -->
-```{r}
-# gnomad_decoded2 <- gnomad_decoded2 %>% 
-#   separate(col = ens_vep, paste("ens_vep", 1:25, sep=""),
-#            sep = ",", remove = T, extra = "warn", fill = "right") %>% 
-#   keep(~!all(is.na(.))) %>% 
-#   pivot_longer(cols = starts_with("ens_vep"), names_to = NULL, values_to = "ens_vep") %>% 
-#   drop_na(ens_vep)
-
-# head(gnomad_decoded2 %>% select(IDs, ens_vep))
-```
-
-<!-- VEP contains these information :   -->
-<!-- `"Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "` -->
-<!--   `cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "` -->
-<!--   `STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "` -->
-<!--   `TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "` -->
-<!--   `SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "` -->
-<!--   `ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "` -->
-<!--   `HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info"`   -->
-```{r}
-# Consequence annotations from Ensembl VEP
-# Format: Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|
-# cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|ALLELE_NUM|DISTANCE|
-# STRAND|FLAGS|VARIANT_CLASS|MINIMISED|SYMBOL_SOURCE|HGNC_ID|CANONICAL|TSL|APPRIS|CCDS|ENSP|SWISSPROT|
-# TREMBL|UNIPARC|GENE_PHENO|SIFT|PolyPhen|DOMAINS|HGVS_OFFSET|GMAF|AFR_MAF|AMR_MAF|EAS_MAF|EUR_MAF|
-# SAS_MAF|AA_MAF|EA_MAF|ExAC_MAF|ExAC_Adj_MAF|ExAC_AFR_MAF|ExAC_AMR_MAF|ExAC_EAS_MAF|ExAC_FIN_MAF|
-# ExAC_NFE_MAF|ExAC_OTH_MAF|ExAC_SAS_MAF|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|
-# HIGH_INF_POS|MOTIF_SCORE_CHANGE|LoF|LoF_filter|LoF_flags|LoF_info
-# ens_vep_var_names <- c("Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "
-#   cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "
-#   STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "
-#   TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "
-#   SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "
-#   ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "
-#   HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info")
-# 
-# gnomad_decoded3 <- gnomad_decoded2 %>% 
-#   separate(col = ens_vep, into = ens_vep_var_names,
-#            # paste("ens_vep", 1:100, sep=""),
-#            sep = "\\|", remove = F, extra = "warn", fill = "right")
-
-# head(gnomad_decoded3 %>% select(IDs, "Allele": "LoF_info"))
-```
-
-<!-- What are the ones you are interested in (I can keep them all of course) and how can I filter the variant we want.   -->
-<!-- There are multiple types of `Consequence`. -->
-```{r}
-# table(gnomad_decoded3$Consequence)
-
-# table(gnomad_decoded3$SYMBOL)
 
 gnomad_decoded4 <- gnomad_decoded1 # %>% 
   # filter(!str_detect(Consequence, "3_prime_UTR_variant|5_prime_UTR_variant") #| IDs == "All individuals"#, SYMBOL == "DNMT3A"
@@ -1177,15 +1080,108 @@ CH_variants %>%
   pivot_longer(cols = -IDs) %>% 
   mutate(value = as.numeric(value)) %>% 
   ggplot(aes(x=name, y= value, color= name))+
-  geom_point()+
+  geom_point(size= 3)+
   labs(title = "Allele Frequency in Non-Cancer population (Need to divide by AN?)")+
-  theme_classic()+
+  theme_classic(base_size = 16)+
+  theme(legend.position = "none")+
   facet_wrap(. ~ IDs, scales = "free", ncol = 2)+
   coord_flip()
 ```
 
 
+## Extract Consequence
+I extracted the VEP annotations data from `INFO`.
+VEP contains these information :
+`"Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "`
+  `cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "`
+  `STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "`
+  `TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "`
+  `SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "`
+  `ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "`
+  `HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info"`
+```{r}
+gnomad_decoded2a <- CH_variants %>%
+  mutate(ens_vep = str_match(INFO, ";vep=(.*?)$")[,2])
+gnomad_decoded2b <- gnomad_decoded2a %>%
+  separate(col = ens_vep, paste("ens_vep", 1:25, sep=""),
+           sep = ",", remove = T, extra = "warn", fill = "right") %>%
+  keep(~!all(is.na(.))) %>%
+  pivot_longer(cols = starts_with("ens_vep"), names_to = NULL, values_to = "ens_vep") %>%
+  drop_na(ens_vep)
 
+ens_vep_var_names <- c("Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", 
+                       "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", 
+                       "cDNA_position", "CDS_position", "Protein_position", "Amino_acids",
+                       "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "STRAND", 
+                       "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", 
+                       "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "TREMBL",
+                       "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", 
+                       "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "SAS_MAF", "AA_MAF",
+                       "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", 
+                       "ExAC_EAS_MAF", "ExAC_FIN_MAF", "ExAC_NFE_MAF", "ExAC_OTH_MAF", 
+                       "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME",
+                       "MOTIF_POS", "HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", 
+                       "LoF_flags", "LoF_info")
+
+gnomad_decoded3 <- gnomad_decoded2b %>%
+  separate(col = ens_vep, into = ens_vep_var_names,
+           sep = "\\|", remove = F, extra = "warn", fill = "right")
+```
+
+```{r}
+gnomad_decoded3 %>% 
+  select(IDs, SYMBOL, Consequence, HGVSp, 
+         "Feature_type", "BIOTYPE", "HGVSc", "HGVSp", "Protein_position", "Amino_acids", 
+         "VARIANT_CLASS", "SIFT", "PolyPhen", 
+         "GMAF", 
+         "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", 
+         "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", 
+         "ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", 
+         "MOTIF_NAME", "MOTIF_POS", "HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", 
+         "LoF_filter", "LoF_flags", "LoF_info")
+```
+
+<br>
+<br>
+
+***
+
+<br>
+
+<!-- Here an example of `Consequence` on gnomAD browser -->
+```{r, out.width='100%'}
+# knitr::include_graphics('/Users/colinccm/Documents/GitHub/Gillis/CH_gnomAD/variant effect predictor.jpg')
+```
+<!-- <br> -->
+
+
+
+
+
+```{r}
+# Consequence annotations from Ensembl VEP
+# Format: Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|
+# cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|ALLELE_NUM|DISTANCE|
+# STRAND|FLAGS|VARIANT_CLASS|MINIMISED|SYMBOL_SOURCE|HGNC_ID|CANONICAL|TSL|APPRIS|CCDS|ENSP|SWISSPROT|
+# TREMBL|UNIPARC|GENE_PHENO|SIFT|PolyPhen|DOMAINS|HGVS_OFFSET|GMAF|AFR_MAF|AMR_MAF|EAS_MAF|EUR_MAF|
+# SAS_MAF|AA_MAF|EA_MAF|ExAC_MAF|ExAC_Adj_MAF|ExAC_AFR_MAF|ExAC_AMR_MAF|ExAC_EAS_MAF|ExAC_FIN_MAF|
+# ExAC_NFE_MAF|ExAC_OTH_MAF|ExAC_SAS_MAF|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|
+# HIGH_INF_POS|MOTIF_SCORE_CHANGE|LoF|LoF_filter|LoF_flags|LoF_info
+# ens_vep_var_names <- c("Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "
+#   cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "
+#   STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "
+#   TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "
+#   SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "
+#   ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "
+#   HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info")
+# 
+# gnomad_decoded3 <- gnomad_decoded2 %>% 
+#   separate(col = ens_vep, into = ens_vep_var_names,
+#            # paste("ens_vep", 1:100, sep=""),
+#            sep = "\\|", remove = F, extra = "warn", fill = "right")
+
+# head(gnomad_decoded3 %>% select(IDs, "Allele": "LoF_info"))
+```
 
 
 
