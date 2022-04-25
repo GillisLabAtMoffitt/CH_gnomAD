@@ -681,7 +681,7 @@ final_cosmic <- final_cosmic %>% ###################################### Clean up
 
 `r emo::ji("warning")`But we also have multiple `HGVSP` for a single `chr, POS, REF, ALT`. It can be a problem if we bind by IDs...  
 ```{r}
-(final_cosmic %>% select(IDs, HGVSP, occurrence_in_cosmic))[61:67,]
+(final_cosmic %>% select(IDs, HGVSP, occurrence_in_cosmic, Mutation.somatic.status))[61:67,]
 ```
 
 <span style="color:red">**What are the variable you want in cosmic?**</span>
@@ -1053,7 +1053,7 @@ CH_variants <- CH_variants_cpra %>%
   mutate(nc_freq_allele_count_amr_male = str_match(INFO, "non_cancer_AF_amr_male=(.*?);")[,2]) %>%
 
   # "Total number of alleles in samples in the non_cancer subset, before removing low-confidence genotypes">
-  mutate(nc_freq_allele_count_male = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2])
+  mutate(nc_freq_allele_count_raw = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2])
 ```
 
 ```{r}
@@ -1063,7 +1063,7 @@ head(CH_variants)
 ```{r}
 CH_variants %>% 
   select(Primary.site, Primary.histology, Histology.subtype.1,
-         HGVSP,
+         HGVSP, Mutation.somatic.status,
          FATHMM.prediction,
          average_age) %>% 
   tbl_summary() %>% 
@@ -1081,7 +1081,7 @@ CH_variants %>%
   mutate(value = as.numeric(value)) %>% 
   ggplot(aes(x=name, y= value, color= name))+
   geom_point(size= 3)+
-  labs(title = "Allele Frequency in Non-Cancer population (Need to divide by AN?)")+
+  labs(title = "Frequency of the allele in Non-Cancer population")+
   theme_classic(base_size = 16)+
   theme(legend.position = "none")+
   facet_wrap(. ~ IDs, scales = "free", ncol = 2)+
