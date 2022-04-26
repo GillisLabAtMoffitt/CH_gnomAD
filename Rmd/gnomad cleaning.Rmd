@@ -53,8 +53,8 @@ div.blue { background-color:#0099CC; border-radius: 5px; padding: 20px; font-siz
 
 ```{r library, include=FALSE}
 library(tidyverse)
-library(e1071)
-library(purrr)
+# library(e1071)
+# library(purrr)
 library(gtsummary)
 ```
 
@@ -595,8 +595,8 @@ cosmic <-
                            "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status", "Pubmed_PMID", 
                            "ID_STUDY", "Sample.Type", "Tumour.origin", "Age", "HGVSP", "HGVSC", "HGVSG"))
 
-classification <-
-  read_csv(paste0(path, "/cosmic_raw_data/classification.csv"))
+# classification <-
+#   read_csv(paste0(path, "/cosmic_raw_data/classification.csv"))
 ```
 
 As an example I selected all the variant DNMT3A. Here is a example of the raw data.
@@ -608,20 +608,28 @@ As you can see we have multiple rows for 1 mutation (the data shows 1 sample per
 <br>
 
 ```{r}
-cosmic <-
+cosmic1 <-
   cosmic %>% 
+  mutate(modification = str_match(HGVSG, "(delins|ins|del|dup)(.*?)$")[,2],
+         aa_inserted = case_when(
+           modification %in% c("ins", "delins")   ~ str_match(HGVSG, "(delins|ins|del|dup)(.*?)$")[,3],
+           TRUE                                   ~ NA_character_
+         )) 
+  
   separate(HGVSG, into = c("chr", "chr_arm", "POS", "ALT"), sep = ":|\\.|>|delins|dup|del", remove = FALSE) %>% 
   mutate(REF = str_match(POS, "([0-9]*)([A-Z]*)")[,3]) %>% 
   mutate(POS = str_match(POS, "([0-9]*)([A-Z]*)")[,2],
          POS = as.numeric(POS)) %>% 
   # separate(Mutation.genome.position, into = c("chr", "start", "end"), sep = ":|-", remove = FALSE) %>% 
-  unite(IDs, c(chr, POS, REF, ALT), sep = "-", remove = FALSE) %>% 
+  unite(IDs, c(chr, POS, REF, ALT), sep = "-", remove = FALSE) %>% #select(IDs, everything())
   # separate(HGVSG, into = c("ENSP", "p_prot_modif"), sep = ":", remove = FALSE) %>% 
   mutate(IDs = case_when(
     IDs == "-NA-NA-NA"                 ~ NA_character_,
     TRUE                               ~ IDs
   )) %>% 
   separate(`Gene.name`, into = c("gene_name_cosmic"), sep = "_", remove = FALSE) %>% 
+  # 1 tumor can have multiple sample
+  distinct(IDs, ID_tumour, .keep_all = TRUE) %>% 
   arrange(IDs) %>% 
   select(IDs, "Gene.name", gene_name_cosmic, Gene.name, "Accession.Number", "chr", "POS", REF, "ALT", HGVSG, everything())
 ```
