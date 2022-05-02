@@ -608,13 +608,13 @@ As you can see we have multiple rows for 1 mutation (the data shows 1 sample per
 <br>
 
 ```{r}
-cosmic1 <-
+cosmic <-
   cosmic %>% 
   mutate(modification = str_match(HGVSG, "(delins|ins|del|dup)(.*?)$")[,2],
          aa_inserted = case_when(
            modification %in% c("ins", "delins")   ~ str_match(HGVSG, "(delins|ins|del|dup)(.*?)$")[,3],
            TRUE                                   ~ NA_character_
-         )) 
+         )) %>% 
   
   separate(HGVSG, into = c("chr", "chr_arm", "POS", "ALT"), sep = ":|\\.|>|delins|dup|del", remove = FALSE) %>% 
   mutate(REF = str_match(POS, "([0-9]*)([A-Z]*)")[,3]) %>% 
@@ -697,11 +697,11 @@ final_cosmic <- final_cosmic %>% ###################################### Clean up
 colnames(cosmic)
 ```
 
-What are the variable you want in cosmic classification?
-```{r}
-colnames(classification)
-head(classification)
-```
+<!-- What are the variable you want in cosmic classification? -->
+<!-- ```{r} -->
+<!-- colnames(classification) -->
+<!-- head(classification) -->
+<!-- ``` -->
 
 # V.Bind with cosmic by : chr, POS, REF, ALT
 ## Data

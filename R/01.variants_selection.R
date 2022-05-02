@@ -23,7 +23,7 @@ cosmic <-
                            "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status", "Pubmed_PMID", 
                            "ID_STUDY", "Sample.Type", "Tumour.origin", "Age", "HGVSP", "HGVSC", "HGVSG"))
 ## First test HPC
-head(gnomad)
+# head(gnomad)
 
 
 ###################################################################### II ### Cleaning
@@ -166,11 +166,12 @@ mann_w <- mann_w %>% `colnames<-`(c("mann_w")) %>%
   mutate(IDs = c(unique(gnomad_decoded$IDs)))
 
 # Bind the distribution characteristic values
-selected_variants <- gnomad_decoded %>%
+selected_gnomad <- gnomad_decoded %>%
   full_join(., mann_w, by = "IDs") %>%
   filter(mann_w <= 0.1) %>% 
   distinct(IDs, .keep_all = TRUE)
 
+write_rds(selected_gnomad, "selected_gnomad.rds")
 
 
 # gnomad_decoded4 <- gnomad_decoded1
@@ -186,38 +187,38 @@ selected_variants <- gnomad_decoded %>%
 ## Step 2 : Limit variants present in COSMIC
 cosmic <-
   cosmic %>% 
-  # separate(HGVSG, into = c("chr", "chr_arm", "POS", "ALT"), sep = ":|\\.|>|delins|dup|del", remove = FALSE) %>% 
-  # mutate(REF = str_match(POS, "([0-9]*)([A-Z]*)")[,3]) %>% 
-  # mutate(POS = str_match(POS, "([0-9]*)([A-Z]*)")[,2],
-  #        POS = as.numeric(POS)) %>% 
-  # # separate(Mutation.genome.position, into = c("chr", "start", "end"), sep = ":|-", remove = FALSE) %>% 
-  # unite(IDs, c(chr, POS, REF, ALT), sep = "-", remove = FALSE) %>% #select(IDs, everything())
-  # # separate(HGVSG, into = c("ENSP", "p_prot_modif"), sep = ":", remove = FALSE) %>% 
-  # mutate(IDs = case_when(
-  #   IDs == "-NA-NA-NA"                 ~ NA_character_,
-  #   TRUE                               ~ IDs
-  # )) %>% 
-  # separate(`Gene.name`, into = c("gene_name_cosmic"), sep = "_", remove = FALSE) %>% 
-  # # 1 tumor can have multiple sample
-  # distinct(IDs, ID_tumour, .keep_all = TRUE) %>% 
-  # arrange(IDs) %>% 
-  # select(IDs, "Gene.name", gene_name_cosmic, Gene.name, "Accession.Number", "chr", "POS", REF, "ALT", HGVSG, everything())
+  separate(HGVSG, into = c("chr", "chr_arm", "POS", "ALT"), sep = ":|\\.|>|delins|dup|del", remove = FALSE) %>%
+  mutate(REF = str_match(POS, "([0-9]*)([A-Z]*)")[,3]) %>%
+  mutate(POS = str_match(POS, "([0-9]*)([A-Z]*)")[,2],
+         POS = as.numeric(POS)) %>%
+  # separate(Mutation.genome.position, into = c("chr", "start", "end"), sep = ":|-", remove = FALSE) %>%
+  unite(IDs, c(chr, POS, REF, ALT), sep = "-", remove = FALSE) %>% #select(IDs, everything())
+  # separate(HGVSG, into = c("ENSP", "p_prot_modif"), sep = ":", remove = FALSE) %>%
+  mutate(IDs = case_when(
+    IDs == "-NA-NA-NA"                 ~ NA_character_,
+    TRUE                               ~ IDs
+  )) %>%
+  separate(`Gene.name`, into = c("gene_name_cosmic"), sep = "_", remove = FALSE) %>%
+  # 1 tumor can have multiple sample
+  distinct(IDs, ID_tumour, .keep_all = TRUE) %>%
+  arrange(IDs) %>%
+  select(IDs, "Gene.name", gene_name_cosmic, Gene.name, "Accession.Number", "chr", "POS", REF, "ALT", HGVSG, everything())
 
 final_cosmic <- cosmic %>% 
   group_by(IDs, gene_name_cosmic, chr, POS, REF, ALT) %>% 
   mutate(occurrence_in_cosmic = n())
 
-CH_variants_cpra <- inner_join(selected_variants %>% 
+selected_cosmic <- inner_join(selected_gnomad %>% 
                                  select(-c(AN:variant_frequency)), 
                                final_cosmic, 
                                by = c("IDs", "X.CHROM" = "chr", "POS", "REF", "ALT"))
 
-write_rds(CH_variants_cpra, "CH_variants_cpra.rds")
+write_rds(selected_cosmic, "selected_cosmic.rds")
 
 
 ###################################################################### III ### Extract variant data
 # Consequences
-# CH_variants <- CH_variants_cpra %>%
+# CH_variants <- selected_cosmic %>%
 #   mutate(ens_vep = str_match(INFO, ";vep=(.*?)$")[,2])
 # 
 # CH_variants <- CH_variants %>%
@@ -242,7 +243,7 @@ write_rds(CH_variants_cpra, "CH_variants_cpra.rds")
 
 
 # Allele info
-CH_variants <- CH_variants_cpra %>%
+CH_variants <- selected_cosmic %>%
   # Generate allele count variables from the INFO var
   mutate(alt_allele_count = str_match(INFO, "AC=(.*?);")[,2]) %>%
   mutate(alt_allele_count_female = str_match(INFO, "AC_female=(.*?);")[,2]) %>%
@@ -269,18 +270,6 @@ CH_variants <- CH_variants_cpra %>%
   mutate(freq_allele_count_amr_female = str_match(INFO, "AF_amr_female=(.*?);")[,2]) %>%
   mutate(freq_allele_count_amr_male = str_match(INFO, "AF_amr_male=(.*?);")[,2]) %>%
   
-  # Depth of informative coverage for each sample
-  mutate(depth_allele = str_match(INFO, "DP=(.*?);")[,2]) %>%
-  # GQ
-  
-  
-  
-  # allele type
-  mutate(allele_type = str_match(INFO, "allele_type=(.*?);")[,2]) %>%
-  # variant type
-  mutate(variant_type = str_match(INFO, "variant_type=(.*?);")[,2]) %>%
-  # Number=A,Type=String,Description="Population with maximum AF in the controls subset">
-  mutate(controls_popmax = str_match(INFO, "controls_popmax=(.*?);")[,2]) %>%
   
   
   ## NON CANCER
@@ -311,10 +300,21 @@ CH_variants <- CH_variants_cpra %>%
   mutate(nc_freq_allele_count_amr_male = str_match(INFO, "non_cancer_AF_amr_male=(.*?);")[,2]) %>%
   
   # "Total number of alleles in samples in the non_cancer subset, before removing low-confidence genotypes">
-  mutate(nc_freq_allele_count_raw = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2])
+  mutate(nc_freq_allele_count_raw = str_match(INFO, "non_cancer_AF_raw=(.*?);")[,2]) %>% 
+
+  # Depth of informative coverage for each sample
+  mutate(depth_allele = str_match(INFO, "DP=(.*?);")[,2]) %>%
+  
+  # allele type
+  mutate(allele_type = str_match(INFO, "allele_type=(.*?);")[,2]) %>%
+  # variant type
+  mutate(variant_type = str_match(INFO, "variant_type=(.*?);")[,2]) %>%
+  # Number=A,Type=String,Description="Population with maximum AF in the controls subset">
+  mutate(controls_popmax = str_match(INFO, "controls_popmax=(.*?);")[,2])
+
 
 write_rds(CH_variants, "CH_variants.rds")
-
+write_csv(CH_variants, "CH_variants.csv")
 
 
 
