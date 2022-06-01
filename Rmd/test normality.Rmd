@@ -187,6 +187,7 @@ kurtosis_df <- data.frame(matrix(nrow=1, ncol=0))
 norm_df <- data.frame(matrix(nrow=1, ncol=0)) 
 ks_df <- data.frame(matrix(nrow=1, ncol=0)) 
 shapiro_df <- data.frame(matrix(nrow=1, ncol=0))
+skew_df <- data.frame(matrix(nrow=1, ncol=0))
 # shapiro_df2 <- data.frame(matrix(nrow=1, ncol=0))
 set.seed(1234)
 for(i in unique(gnomad_decoded$IDs)) {
@@ -240,6 +241,8 @@ for(i in unique(gnomad_decoded$IDs)) {
   shapiro_df <- rbind(shapiro_df, shapiro_res)
   # shapiro_res <- shapiro.test(a$y)$p.value # Terrible on binned data
   # shapiro_df2 <- rbind(shapiro_df2, shapiro_res)
+  # result <- skewness(b$sample_frequency, type = 2)
+  # skew <- rbind(skew_df, result)
 
   result <- t.test(variant, ref, alternative = "greater")$p.value
   test_mean <- rbind(test_mean, result)
@@ -256,6 +259,9 @@ ks_df <- ks_df %>% `colnames<-`(c("ks_test")) %>%
   mutate(IDs = c(unique(gnomad_decoded$IDs)))
 shapiro_df <- shapiro_df %>% `colnames<-`(c("shapiro_test")) %>% 
   mutate(IDs = c(unique(gnomad_decoded$IDs)))
+# skew_df <- skew_df %>% `colnames<-`(c("skewness")) %>% 
+#   mutate(IDs = c(unique(gnomad_decoded$IDs)))
+
 # shapiro_df2 <- shapiro_df2 %>% `colnames<-`(c("shapiro_test2")) %>% 
 #   mutate(IDs = c(unique(gnomad_decoded$IDs)))
 
@@ -435,6 +441,13 @@ for(i in unique(data_p$IDs)) {
       colour = "black",
       hjust   = -1.5,
       vjust   = -13
+    )+
+    geom_text(
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("skewness test = ", round(skewness, 3))),
+      colour = "darkgreen",
+      hjust   = -1.5,
+      vjust   = -11
     )+
     # geom_text(
     #   data    = data_plot,

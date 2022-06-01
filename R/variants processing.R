@@ -134,21 +134,25 @@ CH_variants %>%
   tbl_summary() %>% 
   bold_labels()
 
-
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  select(gene_name_cosmic) %>% 
+  tbl_summary() %>% 
+  bold_labels()
 
 # Plot Allele count 
 # do distinct(IDs)
 
 # Look at final variant product/consequences
 # Table for
-# Consequence BIOTYPE Existing_variation VARIANT_CLASS CANONICAL
+# Consequence BIOTYPE VARIANT_CLASS CANONICAL
 # "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "
 # #   SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "
 # #   ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF"
 # CLIN_SIG, SOMATIC -> Those 2 might be empty
 CH_variants %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
-  select(Consequence, BIOTYPE, Existing_variation, VARIANT_CLASS,
+  select(Consequence, BIOTYPE, VARIANT_CLASS,
          CANONICAL, CLIN_SIG, SOMATIC) %>% 
   tbl_summary() %>% 
   bold_labels()

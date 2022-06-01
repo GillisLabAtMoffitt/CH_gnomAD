@@ -686,7 +686,7 @@ final_cosmic <- final_cosmic %>% ###################################### Clean up
   
   mutate(average_age = rowMeans(select(., starts_with("Age")), na.rm = TRUE))
 ```
-
+`r emo::ji("question_mark")` <span style="color:red">**Should we filter cosmic mutations with a minimum of occurence?**</span>  
 `r emo::ji("warning")`But we also have multiple `HGVSP` for a single `chr, POS, REF, ALT`. It can be a problem if we bind by IDs...  
 ```{r}
 (final_cosmic %>% select(IDs, HGVSP, occurrence_in_cosmic, Mutation.somatic.status))[61:67,]
