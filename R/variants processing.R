@@ -17,10 +17,31 @@ final_cosmic <-
 
 
 ###################################################################### II ### Binding
-selected_cosmic <- inner_join(selected_gnomad, 
-                              final_cosmic, 
+selected_variants <- inner_join(selected_gnomad2, # 25 244
+                              final_cosmic1, # 717 668
                               by = c("IDs", "X.CHROM" = "chr", "POS", "REF", "ALT"
                                      ))
+# 8288 selected
+
+selected_gnomad1 <- selected_gnomad %>% # 7581
+  filter(nbr_individuals > 50) 
+# 3201
+
+# Should we remove variants tested (AN) in less than 500 samples?
+selected_gnomad2 <- selected_gnomad %>% # 846
+  mutate(AN = str_match(INFO, "AN=(.*?);")[,2]) %>% 
+  filter(AN > 50)
+# 215
+
+final_cosmic1 <- final_cosmic %>% #6804
+  filter(occurrence_in_cosmic > 50)
+# 69
+
+# 1 + 3
+# 69
+
+# 2 + 3
+# 0
 
 write_rds(selected_cosmic, "selected_cosmic.rds")
 
