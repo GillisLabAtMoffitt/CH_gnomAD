@@ -5,37 +5,44 @@ library(gtsummary)
 
 path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
 selected_gnomad <-
-  read.delim(paste0(path, "/gnomAD_raw_data/age variant selected not complete/chr19_age_selected_gnomad.vcf.gz"), 
+  read.delim(paste0(path, 
+                    "/gnomAD_raw_data/splitted_data/age_comparison_pval/fdr_age_selected_variants/19.txt"), 
              header = TRUE, sep = " "
-             ) %>% 
-  select(c(IDs:nbr_individuals, mann_w))
+  )
+# gnomad <-
+#   read.delim(paste0(path, 
+#                     "/gnomAD_raw_data/splitted_data/age_comparison_pval/chr19_gnomad_age_mannw.vcf.gz"), 
+#              header = TRUE, sep = " "
+#              ) %>% 
+#   select(c(IDs:nbr_individuals, mann_w))
 
 final_cosmic <-
-  read.delim(paste0(path, "/cosmic_raw_data/splitted_data/clean_cosmic_IDs/chr19_cosmic.vcf.gz"), 
+  read.delim(paste0(path, 
+                    "/cosmic_raw_data/splitted_data/filter_cosmic_withIDs/chr19_cosmic.vcf.gz"), 
              header = TRUE, sep = " "
              )
 
 
 ###################################################################### II ### Binding
-selected_variants <- inner_join(selected_gnomad2, # 25 244
-                              final_cosmic1, # 717 668
-                              by = c("IDs", "X.CHROM" = "chr", "POS", "REF", "ALT"
+selected_variants <- inner_join(selected_gnomad, #from 115 862 unselected -> 25 244 selected /mann-w -> 15 727 selected /BH
+                              final_cosmic, # 717 668 -> 254 732
+                              by = c("IDs", "X.CHROM" = "chr"#, "POS", "REF", "ALT"
                                      ))
-# 8288 selected
+# 8288 selected -> 5352 -> 2912
 
 selected_gnomad1 <- selected_gnomad %>% # 7581
-  filter(nbr_individuals > 50) 
+  filter(nbr_individuals > 50)
 # 3201
 
 # Should we remove variants tested (AN) in less than 500 samples?
-selected_gnomad2 <- selected_gnomad %>% # 846
-  mutate(AN = str_match(INFO, "AN=(.*?);")[,2]) %>% 
-  filter(AN > 50)
+# selected_gnomad2 <- selected_gnomad %>% # 846
+#   mutate(AN = str_match(INFO, "AN=(.*?);")[,2]) %>% 
+#   filter(AN > 50)
 # 215
 
-final_cosmic1 <- final_cosmic %>% #6804
-  filter(occurrence_in_cosmic > 50)
-# 69
+final_cosmic1 <- final_cosmic %>% #6804 was with 50
+  filter(occurrence_in_cosmic > 1)
+# 69 was with 50
 
 # 1 + 3
 # 69

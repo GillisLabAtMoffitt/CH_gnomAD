@@ -9,7 +9,7 @@ library(tidyverse)
 select_join <- function(gnomad, cosmic){
   selected_variants <- inner_join(gnomad, 
                                 cosmic, 
-                                by = c("IDs", "X.CHROM" = "chr", "POS", "REF", "ALT"
+                                by = c("IDs", "X.CHROM", "POS", "REF", "ALT"
                                 ))
   
   # Extract allele info
@@ -109,7 +109,8 @@ for (i in chr_vec){
   
   # print(file_list_gnomad)
   gnomad <- do.call("rbind",lapply(Sys.glob(file_list_gnomad), read.delim,
-                                   header = TRUE, sep = " "))
+                                   header = TRUE, sep = " ")) %>% 
+    mutate(X.CHROM = as.character(X.CHROM))
   # print(head(gnomad, 2))
   # print(tail(gnomad, 1))
   file_list_cosmic <- list.files(path = "/share/lab_gillis/Christelle/cosmic_raw_data/splitted_data/clean_cosmic_IDs",
@@ -120,11 +121,12 @@ for (i in chr_vec){
 
   # filename <- file_list_cosmic[[i]]
   cosmic <- read.delim(file_list_cosmic,
-                       header = TRUE, sep = " ")
-  # print(head(cosmic, 2))
+                       header = TRUE, sep = " ") %>% 
+    mutate(X.CHROM = as.character(chr))
+  print(head(cosmic, 2))
   
   ### II ### CALL FUNCTION
-  select_join(gnomad = gnomad, cosmic = cosmic)
+  print(head(select_join(gnomad = gnomad, cosmic = cosmic), 2))
   n = n + 1
 
 }
