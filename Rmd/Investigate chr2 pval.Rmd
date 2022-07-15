@@ -211,7 +211,7 @@ gnomad_decoded <- gnomad %>%
   # mutate(prot_change = str_match(INFO, "(|R)(.*?)|$")[,2]) %>% 
   # mutate(prot_change1 = str_match(INFO, "(|R)(.*?)|$")[,3]) %>% 
   # slice(1:50) %>% 
-  mutate(IDs = ifelse(IDs == "2-25234373-C-T", "2-25234373-C-T_R882H", IDs)) %>% 
+  # mutate(IDs = ifelse(IDs == "2-25234373-C-T", "2-25234373-C-T_R882H", IDs)) %>% 
 
   mutate(age_hist_het_bin_freq = str_match(INFO, "age_hist_het_bin_freq=(.*?);")[,2]) %>%
   # "Count of age values falling below lowest histogram bin edge for heterozygous individuals">
@@ -296,8 +296,102 @@ gnomad_decoded <- gnomad_decoded %>%
   mutate(sample_frequency = sample_count / nbr_individuals)
 ```
 
+<!-- <!-- Found in Cosmic data --> -->
+
+```{r load cosmic}
+cosmic <-
+  read.delim(paste0(path, "/cosmic_raw_data/cosmic_DNMT3_data.vcf.gz"),
+             header = FALSE,
+             col.names = c("Gene.name", "Accession.Number", "Gene.CDS.length", "HGNC.ID", "Sample.name",
+                           "ID_sample", "ID_tumour", "Primary.site", "Site.subtype.1", "Site.subtype.2",
+                           "Site.subtype.3", "Primary.histology", "Histology.subtype.1", "Histology.subtype.2",
+                           "Histology.subtype.3", "Genome.wide.screen", "GENOMIC_MUTATION_ID",
+                           "LEGACY_MUTATION_ID", "MUTATION_ID", "Mutation.CDS", "Mutation.AA",
+                           "Mutation.Description", "Mutation.zygosity", "LOH", "GRCh",
+                           "Mutation.genome.position", "Mutation.strand", "Resistance.Mutation",
+                           "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status", "Pubmed_PMID",
+                           "ID_STUDY", "Sample.Type", "Tumour.origin", "Age", "HGVSP", "HGVSC", "HGVSG"))
+
+```
+
+```{r}
+cosmic <-
+  cosmic %>%
+  mutate(modification = str_match(HGVSG, "(delins|ins|del|dup)(.*?)$")[,2],
+         aa_inserted = case_when(
+           modification %in% c("ins", "delins")   ~ str_match(HGVSG, "(delins|ins|del|dup)(.*?)$")[,3],
+           TRUE                                   ~ NA_character_
+         )) %>%
+
+  separate(HGVSG, into = c("chr", "chr_arm", "POS", "ALT"), sep = ":|\\.|>|delins|dup|del", remove = FALSE) %>%
+  mutate(REF = str_match(POS, "([0-9]*)([A-Z]*)")[,3]) %>%
+  mutate(POS = str_match(POS, "([0-9]*)([A-Z]*)")[,2],
+         POS = as.numeric(POS)) %>%
+  # separate(Mutation.genome.position, into = c("chr", "start", "end"), sep = ":|-", remove = FALSE) %>%
+  unite(IDs, c(chr, POS, REF, ALT), sep = "-", remove = FALSE) %>% #select(IDs, everything())
+  # separate(HGVSG, into = c("ENSP", "p_prot_modif"), sep = ":", remove = FALSE) %>%
+  mutate(IDs = case_when(
+    IDs == "-NA-NA-NA"                 ~ NA_character_,
+    TRUE                               ~ IDs
+  )) %>%
+  separate(`Gene.name`, into = c("gene_name_cosmic"), sep = "_", remove = FALSE) %>%
+  # 1 tumor can have multiple sample
+  distinct(IDs, ID_tumour, .keep_all = TRUE) %>%
+  arrange(IDs) %>%
+  select(IDs, "Gene.name", gene_name_cosmic, Gene.name, "Accession.Number", "chr", "POS", REF, "ALT", HGVSG, everything())
+```
+
+```{r}
+cosmic <- cosmic %>%
+  group_by(IDs, gene_name_cosmic, chr, POS, REF, ALT) %>%
+  mutate(occurrence_in_cosmic = n())
+
+max_occurence = max(cosmic$occurrence_in_cosmic)
+cosmic <- cosmic %>% ###################################### Clean up here--------------------------------
+
+  # distinct()
+  group_by(IDs, gene_name_cosmic, chr, POS, REF, ALT,
+           HGNC.ID,
+           HGVSP, ###################################### Clean up here--------------------------------
+           FATHMM.prediction, FATHMM.score,
+
+           occurrence_in_cosmic) %>%
+  summarise_at(vars(Accession.Number, HGVSG,
+                    Gene.CDS.length,
+    Mutation.CDS,
+          Mutation.AA,
+          Primary.site,
+          Mutation.Description,
+    Mutation.genome.position,
+          Primary.histology,
+          Histology.subtype.1, Histology.subtype.2, Histology.subtype.3,
+          HGVSC,
+          Mutation.somatic.status, Pubmed_PMID,
+          Sample.Type, Tumour.origin, Age), str_c, collapse = "; ") %>%
+  ungroup() %>%
+  separate(Age, paste("Age", 1:max(max_occurence), sep = "_"),
+           sep = "; ", remove = TRUE,
+           extra = "warn", fill = "right") %>%
+  purrr::keep(~!all(is.na(.))) %>%
+  mutate(across(starts_with("Age_"), ~ as.numeric(.))) %>%
+
+  mutate(average_age = rowMeans(select(., starts_with("Age")), na.rm = TRUE)) %>% 
+  mutate(variant_in_cosmic = "Yes")
+```
+
+```{r bind cosmic Ids}
+gnomad_decoded <- left_join(gnomad_decoded %>%
+                               mutate(X.CHROM = as.character(X.CHROM)),
+                cosmic,
+          by = c("IDs", "X.CHROM" = "chr", "POS", "REF", "ALT")) %>% 
+  mutate(variant_in_cosmic = case_when(
+    is.na(variant_in_cosmic)     ~ "No",
+    TRUE                         ~ variant_in_cosmic
+  ))
+```
+
 # Plots all variants
-**R882H is curve #6.**
+**R882H is curve #6 aka 2-25234373-C-T.**
 ```{r}
 mann_w <-  data.frame(matrix(nrow=1, ncol=0)) 
 effect_size <-  data.frame(matrix(nrow=1, ncol=0)) 
@@ -317,8 +411,11 @@ for(i in unique(gnomad_decoded$IDs)) {
     filter(IDs == i
     ) %>% 
     bind_rows(., All) %>% 
-    select("IDs", "age_bin", sample_frequency, bin_age, distribution_mean,
-           nbr_individuals, #prot_change, 
+    select(IDs, age_bin, sample_frequency,
+           bin_age, distribution_mean,
+           nbr_individuals, HGVSP, occurrence_in_cosmic, 
+           Mutation.somatic.status,
+           variant_in_cosmic, #prot_change, 
            adjusted_pval)
   n <- n + 1
   p <- data_plot %>% 
@@ -369,7 +466,7 @@ for(i in unique(gnomad_decoded$IDs)) {
       mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW= ", round(result1, 3))),
       colour = "black",
       hjust   = 0,
-      vjust   = -12
+      vjust   = -9
     )+
     geom_text(
       data    = data_plot %>% 
@@ -377,19 +474,19 @@ for(i in unique(gnomad_decoded$IDs)) {
       mapping = aes(x = -Inf, y = -Inf, label = paste0("BH= ", round(adjusted_pval, 3))),
       colour = "black",
       hjust   = 0,
-      vjust   = -14
+      vjust   = -11
     )+
     geom_text(
       data    = data_plot,
       mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(result2, 3))),
       hjust   = 0,
-      vjust   = -25
+      vjust   = -17
     )+
     geom_text(
       data    = data_plot,
       mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", result3)),
       hjust   = 0,
-      vjust   = -23
+      vjust   = -15
     )+
     geom_text(
       data    = data_plot %>% 
@@ -398,20 +495,39 @@ for(i in unique(gnomad_decoded$IDs)) {
       colour = "darkblue",
       hjust   = 0,
       vjust   = -min(data_plot$sample_frequency)
-    )#+
-    # geom_text(
-    #   data    = data_plot %>% 
-    #            filter(IDs == i),
-    #   mapping = aes(x = -Inf, y = -Inf, label = paste0("prot change=", prot_change)),
-    #   colour = "darkblue",
-    #   hjust   = -1.5,
-    #   vjust   = -min(data_plot$sample_frequency)
-    # )
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste("Is in cosmic?", variant_in_cosmic,",",Mutation.somatic.status)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -35
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("HGVSP= ", HGVSP)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -33
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("occurrence= ", occurrence_in_cosmic)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -31
+    )
   
   print(p)
 
 }
+```
 
+
+```{r}
 # mann_w <- mann_w %>% `colnames<-`(c("mann_w")) %>% 
 #   mutate(IDs = c(unique(gnomad_decoded$IDs)))
 effect_size <- effect_size %>% `colnames<-`(c("effect_size"))%>% 
@@ -426,6 +542,7 @@ stat_measure <- bind_cols(effect_size, effect_size_cat) %>%
 ```
 
 # Plots for BH < 0.05
+**R882H is curve #2 aka 2-25234373-C-T.**
 ```{r}
 selected_variants <- stat_measure %>% filter(adjusted_pval < 0.05)
 n <- 0
@@ -440,9 +557,12 @@ for(i in unique(selected_variants$IDs)) {
     filter(IDs == i
     ) %>% 
     bind_rows(., All) %>% 
-    select("IDs", "age_bin", sample_frequency, bin_age, distribution_mean,
-           nbr_individuals, mann_w, #prot_change, 
-           adjusted_pval, effect_size, effect_size_cat)
+    select(IDs, age_bin, sample_frequency,
+           bin_age, distribution_mean,
+           nbr_individuals, HGVSP, occurrence_in_cosmic, 
+           Mutation.somatic.status,
+           variant_in_cosmic, #prot_change, 
+           adjusted_pval)
   n <- n + 1
   p <- data_plot %>% 
     ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+
@@ -464,12 +584,11 @@ for(i in unique(selected_variants$IDs)) {
   p <- p+
     geom_vline(xintercept = data_plot$distribution_mean, color= "red")+
     geom_text(
-      data    = data_plot %>% 
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW= ", round(mann_w, 3))),
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW= ", round(result1, 3))),
       colour = "black",
       hjust   = 0,
-      vjust   = -12
+      vjust   = -9
     )+
     geom_text(
       data    = data_plot %>% 
@@ -477,38 +596,44 @@ for(i in unique(selected_variants$IDs)) {
       mapping = aes(x = -Inf, y = -Inf, label = paste0("BH= ", round(adjusted_pval, 3))),
       colour = "black",
       hjust   = 0,
-      vjust   = -14
+      vjust   = -11
     )+
     geom_text(
-      data    = data_plot %>% 
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(effect_size, 3))),
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(result2, 3))),
       hjust   = 0,
-      vjust   = -25
+      vjust   = -17
     )+
     geom_text(
-      data    = data_plot %>% 
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", effect_size_cat)),
+      data    = data_plot,
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", result3)),
       hjust   = 0,
-      vjust   = -23
+      vjust   = -15
     )+
     geom_text(
-      data    = data_plot %>% 
+      data    = data_plot %>%
                filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_individuals= ", nbr_individuals)),
-      colour = "darkblue",
+      mapping = aes(x = -Inf, y = -Inf, label = paste("Is in cosmic?", variant_in_cosmic,",",Mutation.somatic.status)),
+      colour = "purple",
       hjust   = 0,
-      vjust   = -min(data_plot$sample_frequency)
-    )#+
-    # geom_text(
-    #   data    = data_plot %>% 
-    #            filter(IDs == i),
-    #   mapping = aes(x = -Inf, y = -Inf, label = paste0("prot change=", prot_change)),
-    #   colour = "darkblue",
-    #   hjust   = -1.5,
-    #   vjust   = -min(data_plot$sample_frequency)
-    # )
+      vjust   = -35
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("HGVSP= ", HGVSP)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -33
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("occurrence= ", occurrence_in_cosmic)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -31
+    )
   
   print(p)
 
