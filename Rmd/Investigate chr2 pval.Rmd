@@ -59,147 +59,177 @@ theme_set(theme_classic())
 
 ```{r load}
 path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
-gnomad_pval <-
-  read.delim(paste0(path, "/gnomAD_raw_data/chr2_test/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
-              sep = " ")
-
-gnomad <-
-  read.delim(paste0(path, "/gnomAD_raw_data/chr2_test/chr2_gnomad_age_mannw.vcf.gz"),
-              sep = " ")
-
 # gnomad_pval <-
-#   read.delim("/Users/colinccm/Documents/Labs/Gillis/chr2_padjusted.vcf.gz",
+#   read.delim(paste0(path, "/gnomAD_raw_data/chr2_test/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
 #               sep = " ")
+# gnomad_pval <-
+#   read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
+#               sep = " ")
+gnomad <-
+  read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
+              sep = " ")
+
 ```
 
 ```{r}
-gnomad <- gnomad %>% 
-  left_join(., gnomad_pval %>% 
-              select(IDs, adjusted_pval),
-            by = "IDs")
+# gnomad <- gnomad %>% 
+#   left_join(., gnomad_pval %>% 
+#               select(IDs, adjusted_pval),
+#             by = "IDs")
 
-rm(gnomad_pval)
+# rm(gnomad_pval)
 ```
 
 # Mean and effect size
-**CH R882H mutation is depicted in red**
+**CH R882H mutation is depicted in red**  
+bh adjusted_selected in yellow   
+effect size_selected in orange
 ```{r}
+bhadjusted_selected <- paste0(c("2-25244379-G-C", 
+                                "2-25244494-C-T", "2-25248052-G-A", "2-25274935-C-T", 
+                                "2-25282744-G-A"),
+                              collapse = "|")
+effsize_selected <- paste0(c("2-25234321-G-A", "2-25234374-G-A",
+                                 "2-25328714-C-G", "2-25328736-G-A"),
+                              collapse = "|")
+
 gnomad %>% 
   select(IDs, nbr_individuals, mann_w, adjusted_pval) %>% 
-  mutate(order= ifelse(IDs=="2-25234373-C-T", 2, 1)) %>% 
-  arrange(order) %>% 
-  ggplot(aes(x= adjusted_pval, y= mann_w, 
-             color= IDs == "2-25234373-C-T",
-             order= order))+
-  geom_point()+
-  scale_color_manual(breaks=c('FALSE', 'TRUE'), values = c("grey", "red"))+
+  ggplot(aes(x= adjusted_pval, y= mann_w))+
+  geom_point(color= "grey")+
+  geom_point(data= gnomad %>% filter(IDs=="2-25234373-C-T"),
+             aes(x= adjusted_pval, y=mann_w), color= "red")+
+  geom_point(data= gnomad %>% 
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= adjusted_pval, y=mann_w), color= "yellow")+
+  geom_point(data= gnomad %>% 
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= adjusted_pval, y=mann_w), color= "orange")+
   theme(legend.position = "none")
 
 gnomad %>% 
   select(IDs, nbr_individuals, mann_w, adjusted_pval) %>% 
-  mutate(order= ifelse(IDs=="2-25234373-C-T", 2, 1)) %>% 
-  arrange(order) %>% 
-  ggplot(aes(x= mann_w, y= nbr_individuals, 
-             color= IDs == "2-25234373-C-T",
-             order= order))+
-  geom_point()+
-  scale_color_manual(breaks=c('FALSE', 'TRUE'), values = c("grey", "red"))+
+  ggplot(aes(x= mann_w, y= nbr_individuals))+
+  geom_point(color= "grey")+
+  geom_point(data= gnomad %>% filter(IDs=="2-25234373-C-T"),
+             aes(x= mann_w, y=adjusted_pval), color= "red")+
+  geom_point(data= gnomad %>% 
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= mann_w, y=adjusted_pval), color= "yellow")+
+  geom_point(data= gnomad %>% 
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= mann_w, y=adjusted_pval), color= "orange")+
   theme(legend.position = "none")
 
 gnomad %>% 
   select(IDs, nbr_individuals, mann_w, adjusted_pval) %>% 
-  mutate(order= ifelse(IDs=="2-25234373-C-T", 2, 1)) %>% 
-  arrange(order) %>% 
-  ggplot(aes(x= adjusted_pval, y= nbr_individuals, 
-             color= IDs == "2-25234373-C-T",
-             order= order))+
-  geom_point()+
-  scale_color_manual(breaks=c('FALSE', 'TRUE'), values = c("grey", "red"))+
+  ggplot(aes(x= adjusted_pval, y= nbr_individuals))+
+  geom_point(color= "grey")+
+  geom_point(data= gnomad %>% filter(IDs=="2-25234373-C-T"),
+             aes(x= adjusted_pval, y=nbr_individuals), color= "red")+
+  geom_point(data= gnomad %>% 
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= adjusted_pval, y=nbr_individuals), color= "yellow")+
+  geom_point(data= gnomad %>% 
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= adjusted_pval, y=nbr_individuals), color= "orange")+
   theme(legend.position = "none")
 ```
 
 ```{r}
-All <- gnomad %>% 
-  filter(IDs == "All individuals"
-  ) %>% 
-  # mutate(IDs = "Reference") %>% 
-  select(distribution_mean_ref = distribution_mean)
+# All <- gnomad %>% 
+#   filter(IDs == "All individuals"
+#   ) %>% 
+#   # mutate(IDs = "Reference") %>% 
+#   select(distribution_mean_ref = distribution_mean)
+# 
+# data_plot <- gnomad %>%
+#   # filter(IDs == i
+#   # ) %>% 
+#   select("IDs", distribution_mean, adjusted_pval) %>% 
+#   bind_cols(., All) %>% 
+#   mutate(effect = distribution_mean - distribution_mean_ref) # need to keep sup values
 
-data_plot <- gnomad %>%
-  # filter(IDs == i
-  # ) %>% 
-  select("IDs", distribution_mean, adjusted_pval) %>% 
-  bind_cols(., All) %>% 
-  mutate(effect = distribution_mean - distribution_mean_ref) # need to keep sup values
-
-data_plot %>% 
-  slice(1:20) %>% 
-  ggplot(aes(x = IDs, y= effect, color= effect > 0
-             #, color= IDs == "All individuals"
-  ))+
-  geom_point()+
-  geom_hline(yintercept = 0)+
-  coord_flip()
+# data_plot %>% 
+#   slice(1:20) %>% 
+#   ggplot(aes(x = IDs, y= effect, color= effect > 0
+#              #, color= IDs == "All individuals"
+#   ))+
+#   geom_point()+
+#   geom_hline(yintercept = 0)+
+#   coord_flip()
 ```
 
 On all the variants
 ```{r}
 library(ggforce)
-data_plot %>% 
-  mutate(order= ifelse(IDs=="2-25234373-C-T", 2, 1)) %>% 
-  arrange(order) %>% 
-  ggplot(aes(x= effect, y= adjusted_pval, 
-             color= IDs == "2-25234373-C-T",
-             order= order))+
-  geom_point()+
-  scale_y_log10()+
-  labs(y= "BH pval (log10)")+
-  scale_color_manual(breaks=c('FALSE', 'TRUE'), values = c("grey", "red"))+
-  theme(legend.position = "none")
-
-data_plot %>% 
-  mutate(order= ifelse(IDs=="2-25234373-C-T", 2, 1)) %>% 
-  arrange(order) %>% 
-  ggplot(aes(x= effect, y= adjusted_pval, 
-             color= IDs == "2-25234373-C-T",
-             order= order))+
-  geom_point()+
-  scale_y_continuous(trans = trans_reverser('log10'))+
-  # scale_y_continuous(trans = "log2")+
-  labs(y= "BH pval (log10)")+
-  scale_color_manual(breaks=c('FALSE', 'TRUE'), values = c("grey", "red"))+
-  theme(legend.position = "none")
+# data_plot %>% 
+#   ggplot(aes(x= effect, y= adjusted_pval))+
+#   geom_point(color= "grey")+
+#   geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
+#              aes(x= effect, y=adjusted_pval), color= "red")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, bhadjusted_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "yellow")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, effsize_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "orange")+
+#   scale_y_log10()+
+#   labs(y= "BH pval (log10)")+
+#   theme(legend.position = "none")
+# 
+# data_plot %>% 
+#   ggplot(aes(x= effect, y= adjusted_pval))+
+#   geom_point(color= "grey")+
+#   geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
+#              aes(x= effect, y=adjusted_pval), color= "red")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, bhadjusted_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "yellow")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, effsize_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "orange")+
+#   scale_y_continuous(trans = trans_reverser('log10'))+
+#   # scale_y_continuous(trans = "log2")+
+#   labs(y= "BH pval (log10)")+
+#   theme(legend.position = "none")
 ```
 
 On BH < 0.05
 ```{r}
 library(ggforce)
-data_plot %>% 
-  filter(adjusted_pval < 0.05) %>% 
-  mutate(order= ifelse(IDs=="2-25234373-C-T", 2, 1)) %>% 
-  arrange(order) %>% 
-  ggplot(aes(x= effect, y= adjusted_pval, 
-             color= IDs == "2-25234373-C-T",
-             order= order))+
-  geom_point()+
-  scale_y_log10()+
-  labs(y= "BH pval (log10)")+
-  scale_color_manual(breaks=c('FALSE', 'TRUE'), values = c("grey", "red"))+
-  theme(legend.position = "none")
-
-data_plot %>% 
-  filter(adjusted_pval < 0.05) %>% 
-  mutate(order= ifelse(IDs=="2-25234373-C-T", 2, 1)) %>% 
-  arrange(order) %>% 
-  ggplot(aes(x= effect, y= adjusted_pval, 
-             color= IDs == "2-25234373-C-T",
-             order= order))+
-  geom_point()+
-  scale_y_continuous(trans = trans_reverser('log10'))+
-  # scale_y_continuous(trans = "log2")+
-  labs(y= "BH pval (log10)")+
-  scale_color_manual(breaks=c('FALSE', 'TRUE'), values = c("grey", "red"))+
-  theme(legend.position = "none")
+# data_plot %>% 
+#   filter(adjusted_pval < 0.05) %>% 
+#   ggplot(aes(x= effect, y= adjusted_pval))+
+#   geom_point(color= "grey")+
+#   geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
+#              aes(x= effect, y=adjusted_pval), color= "red")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, bhadjusted_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "yellow")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, effsize_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "orange")+
+#   scale_y_log10()+
+#   labs(y= "BH pval (log10)")+
+#   theme(legend.position = "none")
+# 
+# data_plot %>% 
+#   filter(adjusted_pval < 0.05) %>% 
+#   ggplot(aes(x= effect, y= adjusted_pval))+
+#   geom_point(color= "grey")+
+#   geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
+#              aes(x= effect, y=adjusted_pval), color= "red")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, bhadjusted_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "yellow")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, effsize_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "orange")+
+#   scale_y_continuous(trans = 'log2')+
+#   # scale_y_continuous(trans = "log2")+
+#   labs(y= "BH pval (log2)")+
+#   theme(legend.position = "none")
 ```
 
 ```{r}
@@ -262,7 +292,7 @@ gnomad_decoded <- gnomad %>%
           ">80" = 1935) %>%
   mutate(nbr_individuals = rowSums(select(.,`<30`:`>80`), na.rm = TRUE)) %>%
   
-  select(-c(ends_with("_het"), ends_with("_hom"))) %>% 
+  select(-c(ends_with("_het"), ends_with("_hom"), bin_age)) %>% 
   
   select(IDs, everything())
 ```
@@ -393,7 +423,7 @@ gnomad_decoded <- left_join(gnomad_decoded %>%
 # Plots all variants
 **R882H is curve #6 aka 2-25234373-C-T.**
 ```{r}
-mann_w <-  data.frame(matrix(nrow=1, ncol=0)) 
+# mann_w <-  data.frame(matrix(nrow=1, ncol=0)) 
 effect_size <-  data.frame(matrix(nrow=1, ncol=0)) 
 effect_size_cat <-  data.frame(matrix(nrow=1, ncol=0)) 
 
@@ -412,8 +442,10 @@ for(i in unique(gnomad_decoded$IDs)) {
     ) %>% 
     bind_rows(., All) %>% 
     select(IDs, age_bin, sample_frequency,
-           bin_age, distribution_mean,
-           nbr_individuals, HGVSP, occurrence_in_cosmic, 
+           bin_age, #distribution_mean,
+           nbr_individuals, mann_pval, adjusted_pval,
+           
+           HGVSP, occurrence_in_cosmic, 
            Mutation.somatic.status,
            variant_in_cosmic, #prot_change, 
            adjusted_pval)
@@ -444,13 +476,13 @@ for(i in unique(gnomad_decoded$IDs)) {
   ref <- p_ %>% filter(group == 2)
   ref <- sample(ref$x, 180, prob = ref$y, replace = TRUE)
   
-  result1 <- wilcox.test(variant, ref, alternative = "greater")$p.value
-  mann_w <- rbind(mann_w, result1)
+  # result1 <- wilcox.test(variant, ref, alternative = "greater")$p.value
+  # mann_w <- rbind(mann_w, result1)
   
   result2 <- cohen.d(variant, ref, hedges.correction=TRUE)$estimate
   effect_size <- rbind(effect_size, result2)
-  result3 <- cohen.d(variant, ref,hedges.correction=TRUE)$magnitude %>% 
-    as_tibble() %>% 
+  result3 <- cohen.d(variant, ref,hedges.correction=TRUE)$magnitude[1] %>% 
+    as_tibble() %>%
     mutate(value = case_when(
       value == "negligible"   ~ "negligible",
       value == "small"        ~ "small",
@@ -460,10 +492,10 @@ for(i in unique(gnomad_decoded$IDs)) {
   effect_size_cat <- rbind(effect_size_cat, result3)
   
   p <- p+
-    geom_vline(xintercept = data_plot$distribution_mean, color= "red")+
+    # geom_vline(xintercept = data_plot$distribution_mean, color= "red")+
     geom_text(
       data    = data_plot,
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW= ", round(result1, 3))),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW= ", round(mann_pval, 3))),
       colour = "black",
       hjust   = 0,
       vjust   = -9
@@ -477,13 +509,13 @@ for(i in unique(gnomad_decoded$IDs)) {
       vjust   = -11
     )+
     geom_text(
-      data    = data_plot,
+      # data    = data_plot,
       mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(result2, 3))),
       hjust   = 0,
       vjust   = -17
     )+
     geom_text(
-      data    = data_plot,
+      # data    = data_plot,
       mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", result3)),
       hjust   = 0,
       vjust   = -15
@@ -541,11 +573,73 @@ stat_measure <- bind_cols(effect_size, effect_size_cat) %>%
 # print(head(stat_measure))
 ```
 
-# Plots for BH < 0.05
+```{r}
+stat_measure %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x= effect_size, y= adjusted_pval))+
+  geom_point(color= "grey")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(IDs=="2-25234373-C-T"),
+             aes(x= effect_size, y=adjusted_pval), color= "red")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= effect_size, y=adjusted_pval), color= "yellow")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= effect_size, y=adjusted_pval), color= "orange")
+
+stat_measure %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x= effect_size, y= adjusted_pval))+
+  geom_point(color= "grey")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(IDs=="2-25234373-C-T"),
+             aes(x= effect_size, y=adjusted_pval), color= "red")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= effect_size, y=adjusted_pval), color= "yellow")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= effect_size, y=adjusted_pval), color= "orange")+
+  scale_y_log10()+
+  labs(x= "Hedges g effect size", y= "BH pval (log10)")+
+  theme(legend.position = "none")
+
+stat_measure %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x= effect_size, y= adjusted_pval))+
+  geom_point(color= "grey")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>%
+               filter(IDs=="2-25234373-C-T"),
+             aes(x= effect_size, y=adjusted_pval), color= "red")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= effect_size, y=adjusted_pval), color= "yellow")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= effect_size, y=adjusted_pval), color= "orange")+
+  scale_y_continuous(trans = 'log2')+
+  # scale_y_continuous(trans = "log2")+
+  labs(x= "Hedges g effect size", y= "BH pval (log2)")+
+  theme(legend.position = "none")
+```
+
+# Plots for BH ≤ 0.1
 **R882H is curve #2 aka 2-25234373-C-T.**
 ```{r}
-selected_variants <- stat_measure %>% filter(adjusted_pval < 0.05)
+selected_variants <- stat_measure %>% filter(adjusted_pval <= 0.1)
 n <- 0
+
+set.seed(1234)
 
 for(i in unique(selected_variants$IDs)) {
   
@@ -558,8 +652,10 @@ for(i in unique(selected_variants$IDs)) {
     ) %>% 
     bind_rows(., All) %>% 
     select(IDs, age_bin, sample_frequency,
-           bin_age, distribution_mean,
-           nbr_individuals, HGVSP, occurrence_in_cosmic, 
+           bin_age, #distribution_mean,
+           nbr_individuals, mann_pval, adjusted_pval,
+           effect_size, effect_size_cat,
+           HGVSP, occurrence_in_cosmic, 
            Mutation.somatic.status,
            variant_in_cosmic, #prot_change, 
            adjusted_pval)
@@ -582,10 +678,11 @@ for(i in unique(selected_variants$IDs)) {
     ylim(0, max(data_plot$sample_frequency))
   
   p <- p+
-    geom_vline(xintercept = data_plot$distribution_mean, color= "red")+
+    # geom_vline(xintercept = data_plot$distribution_mean, color= "red")+
     geom_text(
-      data    = data_plot,
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW= ", round(result1, 3))),
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW= ", round(mann_pval, 3))),
       colour = "black",
       hjust   = 0,
       vjust   = -9
@@ -599,14 +696,122 @@ for(i in unique(selected_variants$IDs)) {
       vjust   = -11
     )+
     geom_text(
-      data    = data_plot,
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(result2, 3))),
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(effect_size, 3))),
       hjust   = 0,
       vjust   = -17
     )+
     geom_text(
-      data    = data_plot,
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", result3)),
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", effect_size_cat)),
+      hjust   = 0,
+      vjust   = -15
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste("Is in cosmic?", variant_in_cosmic,",",Mutation.somatic.status)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -35
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("HGVSP= ", HGVSP)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -33
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("occurrence= ", occurrence_in_cosmic)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -31
+    )
+  
+  print(p)
+
+}
+```
+
+# Plots Hedges >= small
+**R882H is curve #2 aka 2-25234373-C-T.**
+```{r}
+selected_variants <- selected_variants %>% filter(effect_size_cat != "negligible")
+n <- 0
+
+set.seed(1234)
+
+for(i in unique(selected_variants$IDs)) {
+  
+  All <- gnomad_decoded %>% 
+    filter(IDs == "All individuals"
+  ) %>% 
+    mutate(IDs = "Reference")
+  data_plot <- selected_variants %>% 
+    filter(IDs == i
+    ) %>% 
+    bind_rows(., All) %>% 
+    select(IDs, age_bin, sample_frequency,
+           bin_age, #distribution_mean,
+           nbr_individuals, mann_pval, adjusted_pval,
+           effect_size, effect_size_cat,
+           HGVSP, occurrence_in_cosmic, 
+           Mutation.somatic.status,
+           variant_in_cosmic, #prot_change, 
+           adjusted_pval)
+  n <- n + 1
+  p <- data_plot %>% 
+    ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+
+    # ggplot(aes(x = age_bin, y= sample_frequency, color= IDs))+
+    # geom_bar(stat = "identity", aes(alpha= IDs))
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+                # method.args=list(family=quasibinomial)#,
+                span = 0.6
+    )+
+    labs(title = n)+
+    geom_col(data = data_plot %>% 
+               filter(IDs == i) ,
+             aes(x= bin_age, y= sample_frequency),
+             position = "identity",
+             fill = "red",
+             alpha = 0.1)+
+    ylim(0, max(data_plot$sample_frequency))
+  
+  p <- p+
+    # geom_vline(xintercept = data_plot$distribution_mean, color= "red")+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW= ", round(mann_pval, 3))),
+      colour = "black",
+      hjust   = 0,
+      vjust   = -9
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("BH= ", round(adjusted_pval, 3))),
+      colour = "black",
+      hjust   = 0,
+      vjust   = -11
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(effect_size, 3))),
+      hjust   = 0,
+      vjust   = -17
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", effect_size_cat)),
       hjust   = 0,
       vjust   = -15
     )+
