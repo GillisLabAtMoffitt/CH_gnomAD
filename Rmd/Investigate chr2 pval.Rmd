@@ -84,7 +84,7 @@ gnomad <-
 **CH R882H mutation is depicted in red**  
 bh adjusted_selected in yellow   
 effect size_selected in orange
-```{r}
+```{r plot}
 bhadjusted_selected <- paste0(c("2-25244379-G-C", 
                                 "2-25244494-C-T", "2-25248052-G-A", "2-25274935-C-T", 
                                 "2-25282744-G-A"),
@@ -136,7 +136,7 @@ gnomad %>%
   theme(legend.position = "none")
 ```
 
-```{r}
+```{r plot1}
 # All <- gnomad %>% 
 #   filter(IDs == "All individuals"
 #   ) %>% 
@@ -161,7 +161,7 @@ gnomad %>%
 ```
 
 On all the variants
-```{r}
+```{r plot3}
 library(ggforce)
 # data_plot %>% 
 #   ggplot(aes(x= effect, y= adjusted_pval))+
@@ -196,7 +196,7 @@ library(ggforce)
 ```
 
 On BH < 0.05
-```{r}
+```{r plot4}
 library(ggforce)
 # data_plot %>% 
 #   filter(adjusted_pval < 0.05) %>% 
@@ -232,7 +232,7 @@ library(ggforce)
 #   theme(legend.position = "none")
 ```
 
-```{r}
+```{r recreate age bin}
 gnomad_decoded <- gnomad %>%
   select(-age_bin, -sample_frequency, -sample_count, -nbr_individuals) %>% 
   mutate(gene_in_gnomad = str_match(INFO, "(DNMT3A)(.*?)$")[,2]) %>% 
@@ -297,7 +297,7 @@ gnomad_decoded <- gnomad %>%
   select(IDs, everything())
 ```
 
-```{r}
+```{r recreate age bin2}
 gnomad_decoded <- gnomad_decoded %>% 
   pivot_longer(cols = c(grep("[[:digit:]]", colnames(.))), 
                names_to = "age_bin", values_to = "sample_count") %>% 
@@ -329,19 +329,22 @@ gnomad_decoded <- gnomad_decoded %>%
 <!-- <!-- Found in Cosmic data --> -->
 
 ```{r load cosmic}
-cosmic <-
-  read.delim(paste0(path, "/cosmic_raw_data/cosmic_DNMT3_data.vcf.gz"),
-             header = FALSE,
-             col.names = c("Gene.name", "Accession.Number", "Gene.CDS.length", "HGNC.ID", "Sample.name",
-                           "ID_sample", "ID_tumour", "Primary.site", "Site.subtype.1", "Site.subtype.2",
-                           "Site.subtype.3", "Primary.histology", "Histology.subtype.1", "Histology.subtype.2",
-                           "Histology.subtype.3", "Genome.wide.screen", "GENOMIC_MUTATION_ID",
-                           "LEGACY_MUTATION_ID", "MUTATION_ID", "Mutation.CDS", "Mutation.AA",
-                           "Mutation.Description", "Mutation.zygosity", "LOH", "GRCh",
-                           "Mutation.genome.position", "Mutation.strand", "Resistance.Mutation",
-                           "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status", "Pubmed_PMID",
-                           "ID_STUDY", "Sample.Type", "Tumour.origin", "Age", "HGVSP", "HGVSC", "HGVSG"))
+# cosmic <-
+#   read.delim(paste0(path, "/cosmic_raw_data/cosmic_DNMT3_data.vcf.gz"),
+#              header = FALSE,
+#              col.names = c("Gene.name", "Accession.Number", "Gene.CDS.length", "HGNC.ID", "Sample.name",
+#                            "ID_sample", "ID_tumour", "Primary.site", "Site.subtype.1", "Site.subtype.2",
+#                            "Site.subtype.3", "Primary.histology", "Histology.subtype.1", "Histology.subtype.2",
+#                            "Histology.subtype.3", "Genome.wide.screen", "GENOMIC_MUTATION_ID",
+#                            "LEGACY_MUTATION_ID", "MUTATION_ID", "Mutation.CDS", "Mutation.AA",
+#                            "Mutation.Description", "Mutation.zygosity", "LOH", "GRCh",
+#                            "Mutation.genome.position", "Mutation.strand", "Resistance.Mutation",
+#                            "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status", "Pubmed_PMID",
+#                            "ID_STUDY", "Sample.Type", "Tumour.origin", "Age", "HGVSP", "HGVSC", "HGVSG"))
 
+cosmic <-
+  read.delim(paste0(path, "/cosmic_raw_data/splitted_data/filter_cosmic_withIDs/chr2_cosmic.vcf.gz"),
+              sep = " ")
 ```
 
 ```{r}
@@ -405,24 +408,21 @@ cosmic <- cosmic %>% ###################################### Clean up here-------
   purrr::keep(~!all(is.na(.))) %>%
   mutate(across(starts_with("Age_"), ~ as.numeric(.))) %>%
 
-  mutate(average_age = rowMeans(select(., starts_with("Age")), na.rm = TRUE)) %>% 
+  mutate(average_age = rowMeans(select(., starts_with("Age")), na.rm = TRUE)) %>%
   mutate(variant_in_cosmic = "Yes")
 ```
 
 ```{r bind cosmic Ids}
 gnomad_decoded <- left_join(gnomad_decoded %>%
-                               mutate(X.CHROM = as.character(X.CHROM)),
-                cosmic,
-          by = c("IDs", "X.CHROM" = "chr", "POS", "REF", "ALT")) %>% 
-  mutate(variant_in_cosmic = case_when(
-    is.na(variant_in_cosmic)     ~ "No",
-    TRUE                         ~ variant_in_cosmic
-  ))
+                              mutate(X.CHROM = as.character(X.CHROM)),
+                            cosmic %>%
+                              mutate(chr = as.character(chr)),
+                            by = c("IDs", "X.CHROM" = "chr", "POS", "REF", "ALT"))
 ```
 
 # Plots all variants
 **R882H is curve #6 aka 2-25234373-C-T.**
-```{r}
+```{r Plots all variants}
 # mann_w <-  data.frame(matrix(nrow=1, ncol=0)) 
 effect_size <-  data.frame(matrix(nrow=1, ncol=0)) 
 effect_size_cat <-  data.frame(matrix(nrow=1, ncol=0)) 
