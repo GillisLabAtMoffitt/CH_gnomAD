@@ -57,51 +57,282 @@ theme_set(theme_classic())
 ```
 
 ```{r load}
-path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
+# path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
+# 
+# gnomad_variants <-
+#   read.delim(paste0(path, "/gnomAD_skweness/potential_CH_variants/chr2_CH_variants.vcf.gz"), 
+#              colClasses = c("ALT"="character"),
+#               sep = " ")
 
 gnomad_variants <-
-  read.delim(paste0(path, "/gnomAD_skweness/potential_CH_variants/chr2_CH_variants.vcf.gz"), 
+  read.delim(paste0(here::here(), "/chr2_CH_variants.vcf.gz"), 
              colClasses = c("ALT"="character"),
               sep = " ")
 ```
 The number of variants in chromosome `r gnomad_variants %>% distinct(X.CHROM)` is `r nrow(gnomad_variants %>% distinct(IDs))`.
-```{r}
+```{r BH}
+pval_selection <- 0.05
 mannw_variants <- gnomad_variants %>% 
-  filter(adjusted_pval <= 0.1)
+  filter(adjusted_pval <= pval_selection)
 ```
-In chromosome `r mannw_variants %>% distinct(X.CHROM)`, the number of variants with BH ≤ 0.1 is `r nrow(mannw_variants %>% distinct(IDs))`.
-```{r}
-# CH_variants <- mannw_variants %>% 
-#   filter(effect_size_cat != "negligible")
+In chromosome `r mannw_variants %>% distinct(X.CHROM)`, the number of variants with BH ≤ `r pval_selection` is `r nrow(mannw_variants %>% distinct(IDs))`.
+```{r Hedges g}
+hedges_selection <- "negligible|small"
+CH_variants <- mannw_variants %>%
+  # filter(effect_size_cat != "negligible")
+  filter(!str_detect(effect_size_cat, hedges_selection))
 ```
-In chromosome `r CH_variants %>% distinct(X.CHROM)`, the number of variants with Hedges g effect size better than negligible is `r nrow(CH_variants %>% distinct(IDs))`.
-FIX THIS
+In chromosome `r CH_variants %>% distinct(X.CHROM)`, the number of variants with Hedges g effect size better than `r hedges_selection %>% str_replace(., "\\|", " or ")` is `r nrow(CH_variants %>% distinct(IDs))`.
 <br>
 <br>
 
-# GnomAD Analysis for each variants
+
+
+
+
+
+# Cosmic Analysis for each variants
+```{r plot variant in cosmic}
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x=variant_in_cosmic))+
+  geom_bar()+
+  ggtitle("Number of unique variants in Cosmic")
+```
+
 ```{r}
-variants_in_gnomAD <- CH_variants %>% 
+variants_in_cosmic <- CH_variants %>% 
+  filter(variant_in_cosmic == "Yes")
+```
+In chromosome `r variants_in_cosmic %>% distinct(X.CHROM)`, the number of variants present in Cosmic is `r nrow(variants_in_cosmic %>% distinct(IDs))`.
+
+### Restricted analysis to few variants
+2-25234373-C-T is the CH known variant in DNMT3A gene
+2-206304912-G-A is in ZDBF2 gene
+```{r variants_restricted}
+variants_restricted <- variants_in_cosmic %>% 
+  filter(str_detect(IDs, "2-25234373-C-T|2-206304912-G-A"))
+rm(mannw_variants)
+```
+
+The variable available in Cosmic are:
+`"gene_name_cosmic", "Accession.Number", "Gene.CDS.length", "HGNC.ID", "Sample.name", `
+                         `  "ID_sample", "ID_tumour", "Primary.site", "Site.subtype.1", "Site.subtype.2", `
+                         `  "Site.subtype.3", "Primary.histology", "Histology.subtype.1", "Histology.subtype.2", `
+                        `   "Histology.subtype.3", "Genome.wide.screen", "GENOMIC_MUTATION_ID", `
+                        `   "LEGACY_MUTATION_ID", "MUTATION_ID", "Mutation.CDS", "Mutation.AA", `
+                         `  "Mutation.Description", "Mutation.zygosity", "LOH", "GRCh", `
+                        `   "Mutation.genome.position", "Mutation.strand", "Resistance.Mutation", `
+                        `   "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status", "Pubmed_PMID", `
+                        `   "ID_STUDY", "Sample.Type", "Tumour.origin", "Age", "HGVSP", "HGVSC", "HGVSG"`
+                        
+`r emo::ji("warning")` 1 variant can have multiple samples and primary site, etc
+```{r}
+variants_restricted %>% 
+  ggplot(aes(x=Gene.name))+
+  geom_bar()+
+  ggtitle("Number of overall samples per gene")
+
+variants_restricted %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x=Gene.name))+
+  geom_bar()+
+  ggtitle("Number of overall variants per gene")
+```
+
+
+
+
+
+## Cosmic Patients/Cell Line Characteristics
+
+```{r Cosmic Patients/Cell Line Characteristics}
+# show_header_names(tbl)
+
+variants_restricted %>% 
+  select(Age,
+         Primary.site, Primary.histology, Tumour.origin,
+         Sample.Type,
+         Mutation.Description,
+         FATHMM.prediction, Mutation.somatic.status, 
+         IDs) %>% 
+  tbl_summary(by= IDs) %>% 
+  bold_labels() %>% 
+  modify_header(
+    label = '**Cosmic Patients/Cell Line Characteristics**'#,
+    # stat_0 = '**Variants number**, N = {n}',
+  ) %>%
+  modify_spanning_header(all_stat_cols() ~ "**Variants**")
+```
+
+### each sample of a variant is counted.
+```{r sample plot}
+cosmic_var1 <- c("Age",
+         "Primary.site", "Primary.histology", "Tumour.origin",
+         "Sample.Type",
+         "Mutation.Description",
+         "FATHMM.prediction", "Mutation.somatic.status") 
+
+for (i in cosmic_var1){
+  print(
+    variants_restricted %>%
+      ggplot(aes(x= .data[[i]] ))+
+      geom_bar()+
+      facet_wrap(.~ IDs)
+  )
+}
+```
+
+### 1 variant is counted once
+```{r variant plot}
+for (i in cosmic_var1){
+  print(
+    variants_restricted %>%
+      distinct(IDs, .data[[i]]) %>% 
+      ggplot(aes(x= .data[[i]] ))+
+      geom_bar()
+  )
+}
+# # bar_plot <- function(data){
+#   for (i in cosmic_var1){
+#     # if(class(markers_ROI[[i]]) == "factor" | class(markers_ROI[[i]]) == "character") {
+#       variants_restricted %>%
+#         ggplot()+
+#         geom_bar(aes(x=.data[[i]]))
+#       # p2 <- markers_ROI %>%
+#       #   ggplot()+
+#       #   geom_violin(aes(x=.data[[i]], y= .data[[paste0(type, ".p")]]), scale = "count")+
+#       #   geom_boxplot(aes(x=.data[[i]], y= .data[[paste0(type, ".p")]]), width=.1) +
+#       #   theme_classic2()+
+#       #   labs(x=NULL, y=NULL, title="Peripheral \nROIs")
+#       # main <- str_match(type, "percent_(.*)_total")[,2]
+#       # gridExtra::grid.arrange(p1, p2, ncol = 2,
+#       #                         top = "% of Cells Present in",
+#       #                         left =  paste("Overall", main, "immune cells (%) per patients"),
+#       #                         bottom = "Data on Race-Matched Patients")
+#     # }
+#   }
+# # }
+# bar_plot(data = variants_restricted)
+```
+
+## Cosmic Gene Characteristics
+```{r Cosmic Gene Characteristics}
+variants_restricted %>% 
+  select(gene_name_cosmic,
+         Gene.CDS.length, HGNC.ID,
+         Genome.wide.screen, GENOMIC_MUTATION_ID, 
+         LEGACY_MUTATION_ID, MUTATION_ID, Mutation.CDS, Mutation.AA, 
+         Mutation.Description, Mutation.zygosity,
+         Mutation.genome.position, Mutation.strand, Resistance.Mutation, 
+         FATHMM.prediction, FATHMM.score, Mutation.somatic.status,
+         HGVSP, HGVSC, HGVSG,
+         IDs) %>% 
+  tbl_summary(by= IDs) %>% 
+  bold_labels() %>% 
+  modify_header(
+    label = '**Cosmic Gene Characteristics**'
+  ) %>%
+  modify_spanning_header(all_stat_cols() ~ "**Variants**")
+```
+
+### each sample of a variant is counted.
+```{r cosmic plot}
+cosmic_var2 <- c("gene_name_cosmic",
+         "Gene.CDS.length", "HGNC.ID",
+         "Genome.wide.screen", "GENOMIC_MUTATION_ID", 
+         "LEGACY_MUTATION_ID", "MUTATION_ID", "Mutation.CDS", "Mutation.AA", 
+         "Mutation.Description", "Mutation.zygosity",
+         "Mutation.genome.position", "Mutation.strand", "Resistance.Mutation", 
+         "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status",
+         "HGVSP", "HGVSC", "HGVSG") 
+
+for (i in cosmic_var2){
+  print(
+    variants_restricted %>%
+      ggplot(aes(x= .data[[i]] ))+
+      geom_bar()+
+      facet_wrap(.~ IDs)
+  )
+}
+```
+
+### 1 variant is counted once
+```{r}
+for (i in cosmic_var2){
+  print(
+    variants_restricted %>%
+      distinct(IDs, .data[[i]]) %>% 
+      ggplot(aes(x= .data[[i]] ))+
+      geom_bar()
+  )
+}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# GnomAD Analysis for each variants
+
+## Extract Consequence
+I extracted the VEP annotations data from `INFO`.
+VEP contains these information :
+`"Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "`
+  `cDNA_position", "CDS_position", "Protein_position", "Amino_acids", "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "`
+  `STRAND", "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "`
+  `TREMBL", "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "`
+  `SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", "`
+  `ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME", "MOTIF_POS", "`
+  `HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", "LoF_flags", "LoF_info"`
+
+```{r GnomAD Analysis}
+variants_in_gnomAD <- CH_variants %>%
   distinct(IDs, .keep_all = TRUE)
+```
+
+```{r plot bar charts number of candidates known and unknown in gnomAD}
+var_restricted <- variants_in_gnomAD %>%
+  filter(str_detect(IDs, "2-25234373-C-T|2-206304912-G-A"))
+
+var_restricted %>%
+  ggplot(aes(x=Gene.name))+
+  geom_bar()+
+  ggtitle("Number of overall variants per gene")
+```
+
+```{r}
+variants_in_gnomAD <- variants_in_gnomAD %>%
+  filter(str_detect(IDs, "2-25234373-C-T|2-25234321-G-A|2-25234374-G-A|2-25328714-C-G|2-25328736-G-A|2-25244379-G-C|2-25244494-C-T|2-25248052-G-A|2-25274935-C-T|2-25282744-G-A"))
 ```
 
 ## Plots alleles count
 ```{r, fig.width=12, fig.height=12}
-variants_in_gnomAD %>% 
+variants_in_gnomAD %>%
   select(IDs,
-         nc_freq_allele_count, nc_freq_allele_count_female, nc_freq_allele_count_male, 
-         nc_freq_allele_count_afr, nc_freq_allele_count_afr_female, nc_freq_allele_count_afr_male, 
-         nc_freq_allele_count_amr, nc_freq_allele_count_amr_female, nc_freq_allele_count_amr_male) %>% 
-  pivot_longer(cols = -IDs) %>% 
-  mutate(value = as.numeric(value)) %>% 
+         nc_freq_allele_count, nc_freq_allele_count_female, nc_freq_allele_count_male,
+         nc_freq_allele_count_afr, nc_freq_allele_count_afr_female, nc_freq_allele_count_afr_male,
+         nc_freq_allele_count_amr, nc_freq_allele_count_amr_female, nc_freq_allele_count_amr_male) %>%
+  pivot_longer(cols = -IDs) %>%
+  mutate(value = as.numeric(value)) %>%
   mutate(Sex = str_extract(name, "female|male"), Sex = case_when(
     is.na(Sex)             ~ "overall",
     TRUE                   ~ Sex
-  )) %>% 
+  )) %>%
   mutate(Ethnicity = str_extract(name, "afr|amr"), Ethnicity = case_when(
     is.na(Ethnicity)       ~ "overall",
     TRUE                   ~ Ethnicity
-  )) %>% 
+  )) %>%
   ggplot(aes(x=name, y= value, color= Sex, shape= Ethnicity))+
   geom_point(size= 3)+
   labs(title = "Frequency of the allele in Non-Cancer population")+
@@ -131,18 +362,18 @@ vep_in_gnomAD <- vep_in_gnomAD %>%
   pivot_longer(cols = starts_with("ens_vep"), names_to = NULL, values_to = "ens_vep") %>%
   drop_na(ens_vep)
 
-ens_vep_var_names <- c("Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", 
-                       "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", 
+ens_vep_var_names <- c("Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type",
+                       "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp",
                        "cDNA_position", "CDS_position", "Protein_position", "Amino_acids",
-                       "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "STRAND", 
-                       "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID", 
+                       "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "STRAND",
+                       "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID",
                        "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "TREMBL",
-                       "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET", 
+                       "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET",
                        "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "SAS_MAF", "AA_MAF",
-                       "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", 
-                       "ExAC_EAS_MAF", "ExAC_FIN_MAF", "ExAC_NFE_MAF", "ExAC_OTH_MAF", 
+                       "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF",
+                       "ExAC_EAS_MAF", "ExAC_FIN_MAF", "ExAC_NFE_MAF", "ExAC_OTH_MAF",
                        "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME",
-                       "MOTIF_POS", "HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter", 
+                       "MOTIF_POS", "HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter",
                        "LoF_flags", "LoF_info")
 
 vep_in_gnomAD <- vep_in_gnomAD %>%
@@ -153,23 +384,23 @@ vep_in_gnomAD <- vep_in_gnomAD %>%
 ## VEP in gmomAD
 multiple VEP per variants
 ```{r}
-vep_in_gnomAD %>% 
-  select(IDs, SYMBOL, Consequence, HGVSp, 
-         "Feature_type", "BIOTYPE", "HGVSc", "HGVSp", "Protein_position", "Amino_acids", 
-         "VARIANT_CLASS", "SIFT", "PolyPhen", 
-         "GMAF", 
-         "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF", 
-         "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF", 
-         "ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", 
-         "MOTIF_NAME", "MOTIF_POS", "HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", 
+vep_in_gnomAD %>%
+  select(IDs, SYMBOL, Consequence, HGVSp,
+         "Feature_type", "BIOTYPE", "HGVSc", "HGVSp", "Protein_position", "Amino_acids",
+         "VARIANT_CLASS", "SIFT", "PolyPhen",
+         "GMAF",
+         "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF",
+         "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF",
+         "ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO",
+         "MOTIF_NAME", "MOTIF_POS", "HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF",
          "LoF_filter", "LoF_flags", "LoF_info")
 ```
 
 ```{r}
-vep_in_gnomAD %>% 
-  select(IDs, VARIANT_CLASS, GMAF) %>% 
-  tbl_summary(by= IDs) %>% 
-  bold_labels() %>% 
+vep_in_gnomAD %>%
+  select(IDs, VARIANT_CLASS, GMAF) %>%
+  tbl_summary(by= IDs) %>%
+  bold_labels() %>%
   modify_header(
     label = '**VEP in gmomAD Characteristic**'#,
     # stat_0 = '**Variants number**, N = {n}',
@@ -180,69 +411,6 @@ vep_in_gnomAD %>%
 
 
 
-# Cosmic Analysis for each variants
-```{r}
-variants_in_cosmic <- CH_variants %>% 
-  filter(variant_in_cosmic == "Yes")
-```
-In chromosome `r variants_in_cosmic %>% distinct(X.CHROM)`, the number of variants present in Cosmic is `r nrow(variants_in_cosmic %>% distinct(IDs))`.
-
-
-```{r}
-# tbl <- variants_in_cosmic %>% 
-#   distinct(IDs, .keep_all = TRUE) %>% 
-#   select(Primary.site, Primary.histology, Mutation.Description,
-#          FATHMM.prediction, Mutation.somatic.status) %>% 
-#   tbl_summary() %>% 
-#   bold_labels()
-# 
-# show_header_names(tbl)
-
-variants_in_cosmic %>% 
-  distinct(IDs, .keep_all = TRUE) %>% 
-  select(IDs, Primary.site, Primary.histology, Mutation.Description,
-         FATHMM.prediction, Mutation.somatic.status) %>% 
-  tbl_summary(by= IDs) %>% 
-  bold_labels() %>% 
-  modify_header(
-    label = '**Cosmic Characteristic**'#,
-    # stat_0 = '**Variants number**, N = {n}',
-  ) %>%
-  modify_spanning_header(all_stat_cols() ~ "**Variants**")
-
-
-variants_in_cosmic %>% 
-  distinct(IDs, .keep_all = TRUE) %>% 
-  select(IDs, gene_name_cosmic) %>% 
-  tbl_summary(by= IDs) %>% 
-  bold_labels()
-```
-
-
-```{r}
-variants_in_cosmic %>% 
-  distinct(IDs, .keep_all = TRUE) %>% 
-  select(IDs, occurrence_in_cosmic : controls_popmax) %>% 
-  tbl_summary(by= IDs) %>% 
-  bold_labels() %>% 
-  modify_header(
-    label = '**Cosmic Characteristic**'
-  ) %>%
-  modify_spanning_header(all_stat_cols() ~ "**Variants**")
-```
-
-# by sample
-```{r}
-variants_in_cosmic %>% 
-  select(IDs, Age) %>% 
-  tbl_summary(by= IDs,
-              type = list(Age ~ "continuous")) %>% 
-  bold_labels() %>% 
-  modify_header(
-    label = '**Cosmic Sample**'
-  ) %>%
-  modify_spanning_header(all_stat_cols() ~ "**Variants**")
-```
 
 
 
@@ -252,8 +420,8 @@ variants_in_cosmic %>%
 <!-- effect size_selected in orange -->
 ```{r}
 R882H <- "2-25234373-C-T"
-bhadjusted_selected <- paste0(c("2-25244379-G-C", 
-                                "2-25244494-C-T", "2-25248052-G-A", "2-25274935-C-T", 
+bhadjusted_selected <- paste0(c("2-25244379-G-C",
+                                "2-25244494-C-T", "2-25248052-G-A", "2-25274935-C-T",
                                 "2-25282744-G-A"),
                               collapse = "|")
 effsize_selected <- paste0(c("2-25234321-G-A", "2-25234374-G-A",

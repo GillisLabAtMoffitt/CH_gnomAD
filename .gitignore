@@ -15,6 +15,7 @@
 *.jpg
 *.csv
 *.rds
+*.gz
 
 # Rmd and pptx
 *.pptx
