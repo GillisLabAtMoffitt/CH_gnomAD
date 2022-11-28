@@ -69,29 +69,84 @@ gnomad_variants <-
              colClasses = c("ALT"="character"),
               sep = " ")
 ```
-The number of variants in chromosome `r gnomad_variants %>% distinct(X.CHROM)` is `r nrow(gnomad_variants %>% distinct(IDs))`.
+The number of variants in chromosome `r as.character(gnomad_variants %>% distinct(X.CHROM))` is `r nrow(gnomad_variants %>% distinct(IDs))`.
 ```{r BH}
 pval_selection <- 0.05
 mannw_variants <- gnomad_variants %>% 
   filter(adjusted_pval <= pval_selection)
 ```
-In chromosome `r mannw_variants %>% distinct(X.CHROM)`, the number of variants with BH ≤ `r pval_selection` is `r nrow(mannw_variants %>% distinct(IDs))`.
+In chromosome `r as.character(mannw_variants %>% distinct(X.CHROM))`, the number of variants with BH ≤ `r pval_selection` is `r nrow(mannw_variants %>% distinct(IDs))`.
 ```{r Hedges g}
 hedges_selection <- "negligible|small"
 CH_variants <- mannw_variants %>%
   # filter(effect_size_cat != "negligible")
   filter(!str_detect(effect_size_cat, hedges_selection))
 ```
-In chromosome `r CH_variants %>% distinct(X.CHROM)`, the number of variants with Hedges g effect size better than `r hedges_selection %>% str_replace(., "\\|", " or ")` is `r nrow(CH_variants %>% distinct(IDs))`.
+In chromosome `r as.character(CH_variants %>% distinct(X.CHROM))`, the number of variants with Hedges g effect size better than `r hedges_selection %>% str_replace(., "\\|", " or ")` is `r nrow(CH_variants %>% distinct(IDs))`.
 <br>
 <br>
 
+# Number of overall variants per gene
+Not averaged
+```{r fig number of variant per gene}
+known_CH_genes <- c("DNMT3A", "AC093899.2")
+known_CH_gene_list <- paste0(known_CH_genes, collapse = "|")
 
+CH_variants %>% 
+  filter(!is.na(Gene.name)) %>% 
+  # mutate(known_CH_gene = case_when(
+  #   str_detect(Gene.name, known_CH_gene_list)       ~ "known CH gene",
+  #   TRUE                                            ~ Gene.name
+  # )) %>%
+  # mutate(known_CH_gene = fct_relevel(known_CH_gene, "known CH gene")) %>%
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x= Gene.name, fill= Gene.name))+
+  geom_bar(show.legend = FALSE)+
+  ggtitle("Number of overall variants per gene")+
+  labs(x= NULL)+
+  coord_flip()#+ 
+  # coord_cartesian(ylim = c(0, 1000))
+```
 
+# Number of overall variants per gene
+Averaged
+```{r fig number of variant per gene}
 
+CH_variants1 <- CH_variants %>% filter(str_detect(Gene.name, "DNMT3|AAK1")) %>% 
+  select(IDs, Gene.name)
 
+b <- CH_variants1 %>% 
+  filter(!is.na(Gene.name)) %>% 
+  mutate(known_CH_gene = case_when(
+    str_detect(Gene.name, known_CH_gene_list)       ~ "known CH gene",
+    TRUE                                            ~ Gene.name
+  )) %>%
+  group_by(Gene.name) %>% 
+  arrange(Gene.name) %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  mutate(number_of_variants_per_gene = n()) %>% 
+  
+  select(-IDs) %>% 
+  group_by(Gene.name, number_of_variants_per_gene) %>% 
+  distinct(Gene.name, .keep_all = TRUE) %>% 
+  
+  mutate(average_of_variants_per_gene = case_when(
+    str_detect(Gene.name, known_CH_gene_list)          ~ number_of_variants_per_gene / length(known_CH_genes), #wrong here need to calculate how many ch gene are effectively in the data. not just the number in the string
+    TRUE                                               ~ as.numeric(number_of_variants_per_gene)
+  )) 
+  
+  # mutate(known_CH_gene = fct_relevel(known_CH_gene, "known CH gene")) %>%
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x= Gene.name, fill= Gene.name))+
+  geom_bar(show.legend = FALSE)+
+  ggtitle("Number of overall variants per gene")+
+  labs(x= NULL)+
+  coord_flip()#+ 
+  # coord_cartesian(ylim = c(0, 1000))
+```
 
 # Cosmic Analysis for each variants
+here 1 time / variant counted
 ```{r plot variant in cosmic}
 CH_variants %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
@@ -104,14 +159,14 @@ CH_variants %>%
 variants_in_cosmic <- CH_variants %>% 
   filter(variant_in_cosmic == "Yes")
 ```
-In chromosome `r variants_in_cosmic %>% distinct(X.CHROM)`, the number of variants present in Cosmic is `r nrow(variants_in_cosmic %>% distinct(IDs))`.
+In chromosome `r as.character(variants_in_cosmic %>% distinct(X.CHROM))`, the number of variants present in Cosmic is `r nrow(variants_in_cosmic %>% distinct(IDs))`.
 
 ### Restricted analysis to few variants
-2-25234373-C-T is the CH known variant in DNMT3A gene
+2-25234373-C-T is the CH known variant in DNMT3A gene + 2-25234374-G-A   
 2-206304912-G-A is in ZDBF2 gene
 ```{r variants_restricted}
 variants_restricted <- variants_in_cosmic %>% 
-  filter(str_detect(IDs, "2-25234373-C-T|2-206304912-G-A"))
+  filter(str_detect(IDs, "2-25234373-C-T|2-25234374-G-A|2-206304912-G-A"))
 rm(mannw_variants)
 ```
 
@@ -428,4 +483,31 @@ effsize_selected <- paste0(c("2-25234321-G-A", "2-25234374-G-A",
                                  "2-25328714-C-G", "2-25328736-G-A"),
                               collapse = "|")
 ```
+
+# Definition
+
+Mutation somatic status :  
+Information on whether the sample was reported to be Confirmed Somatic, Previously Reported or Variant of unknown origin  
+- Previously observed = when the mutation has been reported as somatic previously but not in current paper.  
+- Confirmed Somatic = if the mutation has been confimed to be somatic in the experiment by sequencing both the tumour and a matched normal from the same patient.  
+- Variant of unknown origin = when the mutation is known to be somatic but the tumour was sequenced without a matched normal.
+
+
+INFO=<ID=AC,Number=A,Type=Integer,Description="Alternate allele count for samples  
+afr, African-American/African ancestry
+amr, Latino ancestry
+asj, Ashkenazi Jewish ancestry
+eas, East Asian ancestry  
+fin, Finnish ancestry  
+nfe, Non-Finnish European ancestry  
+nfe_bgr, Bulgarian (Eastern European) ancestry  
+nfe_est, Estonian ancestry  
+nfe_nwe, North-Western European ancestry  
+nfe_onf, Other Non-Finnish European ancestry  
+nfe_seu, Southern European ancestry  
+nfe_swe, Swedish ancestry  
+oth, Other ancestry  
+
+
+
 
