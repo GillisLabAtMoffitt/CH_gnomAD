@@ -9,6 +9,8 @@
 
 # Output data
 *.log
+*.bed
+*.pdf
 *.png
 *.tiff
 *.html

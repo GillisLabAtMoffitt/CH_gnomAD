@@ -68,7 +68,22 @@ gnomad_variants <-
   read.delim(paste0(here::here(), "/chr2_CH_variants.vcf.gz"), 
              colClasses = c("ALT"="character"),
               sep = " ")
+known_CH_genes <-
+  read_table(paste0(here::here(), "/3390851_Covered.bed"), 
+    col_names = FALSE, skip = 2)
+known_CH_gene_list <- paste0(c(unique(known_CH_genes$X4)), collapse = "|")
 ```
+
+Population age in chromosome `r as.character(gnomad_variants %>% distinct(X.CHROM))` (Cosmic samples)
+```{r Population age}
+gnomad_variants %>% 
+  ggplot(aes(x= Age, fill= str_detect(Gene.name, known_CH_gene_list)))+
+  geom_histogram(binwidth = 1)+
+  xlim(0, 100)
+gnomad_variants %>% select(IDs, Gene.name, Age)
+```
+
+
 The number of variants in chromosome `r as.character(gnomad_variants %>% distinct(X.CHROM))` is `r nrow(gnomad_variants %>% distinct(IDs))`.
 ```{r BH}
 pval_selection <- 0.05
@@ -88,61 +103,93 @@ In chromosome `r as.character(CH_variants %>% distinct(X.CHROM))`, the number of
 
 # Number of overall variants per gene
 Not averaged
-```{r fig number of variant per gene}
-known_CH_genes <- c("DNMT3A", "AC093899.2")
-known_CH_gene_list <- paste0(known_CH_genes, collapse = "|")
+```{r fig number of variant per gene, fig.height=20, fig.width=12}
+# known_CH_genes <- c("DNMT3A", "AC093899.2")
+# known_CH_gene_list <- paste0(known_CH_genes, collapse = "|")
+CH_variants %>% 
+  filter(!is.na(Gene.name) #& ( str_detect(Gene.name, known_CH_genes) | str_detect(Gene.name, "DNMT3|AAK1") )
+         ) %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x= Gene.name, fill= str_detect(Gene.name, known_CH_gene_list)))+
+  geom_bar(show.legend = FALSE)+
+  ggtitle("Number of variants per gene in chromosome 2")+
+  labs(x= NULL, y="Number of variants")+
+  coord_flip()
+```
 
+
+```{r fig number of variant per gene2, fig.height=15, fig.width=12}
 CH_variants %>% 
   filter(!is.na(Gene.name)) %>% 
-  # mutate(known_CH_gene = case_when(
-  #   str_detect(Gene.name, known_CH_gene_list)       ~ "known CH gene",
-  #   TRUE                                            ~ Gene.name
-  # )) %>%
-  # mutate(known_CH_gene = fct_relevel(known_CH_gene, "known CH gene")) %>%
   distinct(IDs, .keep_all = TRUE) %>% 
-  ggplot(aes(x= Gene.name, fill= Gene.name))+
+  mutate(known_CH_gene = case_when(
+    str_detect(Gene.name, known_CH_gene_list)       ~ "known CH gene",
+    TRUE                                            ~ "not CH gene"
+  )) %>%
+  # mutate(known_CH_gene = fct_relevel(known_CH_gene, "known CH gene")) %>%
+  ggplot(aes(x= Gene.name, fill= str_detect(Gene.name, known_CH_gene_list)))+
   geom_bar(show.legend = FALSE)+
   ggtitle("Number of overall variants per gene")+
-  labs(x= NULL)+
-  coord_flip()#+ 
+  labs(x= NULL, y="Number of variants")+
+  coord_flip()+
+  facet_wrap(known_CH_gene ~ ., scales = "free_y")
   # coord_cartesian(ylim = c(0, 1000))
 ```
 
 # Number of overall variants per gene
 Averaged
-```{r fig number of variant per gene}
-
-CH_variants1 <- CH_variants %>% filter(str_detect(Gene.name, "DNMT3|AAK1")) %>% 
-  select(IDs, Gene.name)
-
-b <- CH_variants1 %>% 
+```{r}
+# CH_variants1 <- CH_variants %>% filter(str_detect(Gene.name, "DNMT3|AAK1")) %>% 
+#   select(IDs, Gene.name)
+CH_variants %>% 
   filter(!is.na(Gene.name)) %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+    
+  mutate(known_CH_gene = case_when(
+    str_detect(Gene.name, known_CH_gene_list)       ~ Gene.name,
+    TRUE                                            ~ "not CH gene"
+  )) %>% select(IDs, Gene.name, known_CH_gene) %>% 
+  arrange(known_CH_gene) %>% 
+  group_by(known_CH_gene) %>% 
+  mutate(number_of_variants_per_gene = n()) %>% 
+  distinct(Gene.name, .keep_all = TRUE) %>% 
+  select(-IDs) %>% 
+  
+  group_by(known_CH_gene) %>% 
+  mutate(number_of_gene = n()) %>%
+  ungroup() %>% 
+  mutate(average_of_variants_per_gene = number_of_variants_per_gene / number_of_gene) %>%
+  distinct(known_CH_gene, .keep_all = TRUE) %>% 
+
+  mutate(known_CH_gene = fct_relevel(known_CH_gene, "not CH gene")) %>%
+  ggplot(aes(x= known_CH_gene, y= average_of_variants_per_gene,
+             fill= known_CH_gene == "not CH gene"
+             ))+
+  geom_bar(stat = "identity", show.legend = FALSE)+
+  ggtitle("Average number of variants per gene")+
+  labs(x= NULL)+
+  coord_flip()
+
+CH_variants %>% 
+  filter(!is.na(Gene.name)) %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+    
   mutate(known_CH_gene = case_when(
     str_detect(Gene.name, known_CH_gene_list)       ~ "known CH gene",
     TRUE                                            ~ Gene.name
-  )) %>%
-  group_by(Gene.name) %>% 
-  arrange(Gene.name) %>% 
-  distinct(IDs, .keep_all = TRUE) %>% 
+  )) %>% select(IDs, Gene.name, known_CH_gene) %>% 
+  arrange(known_CH_gene) %>% 
+  group_by(known_CH_gene) %>% 
   mutate(number_of_variants_per_gene = n()) %>% 
-  
-  select(-IDs) %>% 
-  group_by(Gene.name, number_of_variants_per_gene) %>% 
   distinct(Gene.name, .keep_all = TRUE) %>% 
+  select(-IDs) %>% 
   
-  mutate(average_of_variants_per_gene = case_when(
-    str_detect(Gene.name, known_CH_gene_list)          ~ number_of_variants_per_gene / length(known_CH_genes), #wrong here need to calculate how many ch gene are effectively in the data. not just the number in the string
-    TRUE                                               ~ as.numeric(number_of_variants_per_gene)
-  )) 
-  
-  # mutate(known_CH_gene = fct_relevel(known_CH_gene, "known CH gene")) %>%
-  distinct(IDs, .keep_all = TRUE) %>% 
-  ggplot(aes(x= Gene.name, fill= Gene.name))+
-  geom_bar(show.legend = FALSE)+
-  ggtitle("Number of overall variants per gene")+
-  labs(x= NULL)+
-  coord_flip()#+ 
-  # coord_cartesian(ylim = c(0, 1000))
+  group_by(known_CH_gene) %>% 
+  mutate(number_of_gene = n()) %>%
+  ungroup() %>% 
+  mutate(average_of_variants_per_gene = number_of_variants_per_gene / number_of_gene) %>%
+  distinct(known_CH_gene, .keep_all = TRUE) %>% 
+  arrange(desc(average_of_variants_per_gene))
 ```
 
 # Cosmic Analysis for each variants
