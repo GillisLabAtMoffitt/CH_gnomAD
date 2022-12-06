@@ -64,6 +64,8 @@ gnomad <-
   read.delim(paste0(path, "/gnomAD_raw_data/dnmt3a_data.vcf.gz"), 
              header = FALSE, 
              col.names = c("X.CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO"))
+
+gnomad_dnm2 <- gnomad_dnm %>% filter(str_detect(INFO, "Arg882His"))
 ```
 
 As an example I selected all the variant DNMT3A. Here is a example of the raw data.

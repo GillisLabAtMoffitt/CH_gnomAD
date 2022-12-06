@@ -59,25 +59,25 @@ theme_set(theme_classic())
 
 ```{r load}
 path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
-# gnomad_pval <-
-#   read.delim(paste0(path, "/gnomAD_raw_data/chr2_test/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
-#               sep = " ")
-# gnomad_pval <-
-#   read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
-#               sep = " ")
-gnomad <-
+gnomad_pval <-
+  read.delim(paste0(path, "/gnomAD_raw_data/chr2_test/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
+              sep = " ")
+gnomad_pval <-
   read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
               sep = " ")
+# gnomad <-
+#   read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
+#               sep = " ")
 
 ```
 
 ```{r}
-# gnomad <- gnomad %>% 
-#   left_join(., gnomad_pval %>% 
-#               select(IDs, adjusted_pval),
-#             by = "IDs")
+gnomad <- gnomad %>%
+  left_join(., gnomad_pval %>%
+              select(IDs, adjusted_pval),
+            by = "IDs")
 
-# rm(gnomad_pval)
+rm(gnomad_pval)
 ```
 
 # Mean and effect size
@@ -329,22 +329,22 @@ gnomad_decoded <- gnomad_decoded %>%
 <!-- <!-- Found in Cosmic data --> -->
 
 ```{r load cosmic}
-# cosmic <-
-#   read.delim(paste0(path, "/cosmic_raw_data/cosmic_DNMT3_data.vcf.gz"),
-#              header = FALSE,
-#              col.names = c("Gene.name", "Accession.Number", "Gene.CDS.length", "HGNC.ID", "Sample.name",
-#                            "ID_sample", "ID_tumour", "Primary.site", "Site.subtype.1", "Site.subtype.2",
-#                            "Site.subtype.3", "Primary.histology", "Histology.subtype.1", "Histology.subtype.2",
-#                            "Histology.subtype.3", "Genome.wide.screen", "GENOMIC_MUTATION_ID",
-#                            "LEGACY_MUTATION_ID", "MUTATION_ID", "Mutation.CDS", "Mutation.AA",
-#                            "Mutation.Description", "Mutation.zygosity", "LOH", "GRCh",
-#                            "Mutation.genome.position", "Mutation.strand", "Resistance.Mutation",
-#                            "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status", "Pubmed_PMID",
-#                            "ID_STUDY", "Sample.Type", "Tumour.origin", "Age", "HGVSP", "HGVSC", "HGVSG"))
-
 cosmic <-
-  read.delim(paste0(path, "/cosmic_raw_data/splitted_data/filter_cosmic_withIDs/chr2_cosmic.vcf.gz"),
-              sep = " ")
+  read.delim(paste0(path, "/cosmic_raw_data/cosmic_DNMT3_data.vcf.gz"),
+             header = FALSE,
+             col.names = c("Gene.name", "Accession.Number", "Gene.CDS.length", "HGNC.ID", "Sample.name",
+                           "ID_sample", "ID_tumour", "Primary.site", "Site.subtype.1", "Site.subtype.2",
+                           "Site.subtype.3", "Primary.histology", "Histology.subtype.1", "Histology.subtype.2",
+                           "Histology.subtype.3", "Genome.wide.screen", "GENOMIC_MUTATION_ID",
+                           "LEGACY_MUTATION_ID", "MUTATION_ID", "Mutation.CDS", "Mutation.AA",
+                           "Mutation.Description", "Mutation.zygosity", "LOH", "GRCh",
+                           "Mutation.genome.position", "Mutation.strand", "Resistance.Mutation",
+                           "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status", "Pubmed_PMID",
+                           "ID_STUDY", "Sample.Type", "Tumour.origin", "Age", "HGVSP", "HGVSC", "HGVSG"))
+
+# cosmic <-
+#   read.delim(paste0(path, "/cosmic_raw_data/splitted_data/filter_cosmic_withIDs/chr2_cosmic.vcf.gz"),
+#               sep = " ")
 ```
 
 ```{r}
