@@ -1,0 +1,1145 @@
+---
+title: "Inverstigate chr2 pval"
+author: "Christelle Colin-Leitzinger"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    toc_collapsed: no
+    theme: cerulean
+    highlight: pygments
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+---
+
+<style type="text/css">
+h1.title {
+  font-size: 25px;
+}
+.figure {
+   margin-top: 25px;
+   margin-bottom: 25px;
+}
+
+table {
+    margin-top: 25px;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      message = FALSE,
+                      cache = FALSE,
+                      fig.align='center'
+                      )
+options(gtsummary.print_engine = "gt")
+options(gtsummary.as_gt.addl_cmds = "gt::tab_options(table.font.size = 12, data_row.padding = gt::px(1))")
+```
+
+
+<style>
+div.blue { background-color:#0099CC; border-radius: 5px; padding: 20px; font-size: 38px}
+</style>
+<div class = "blue">
+
+<span style="color: white;">GnomAD data</span>
+
+</div>
+<br>
+
+```{r library, include=FALSE}
+library(tidyverse)
+library(effsize)
+
+theme_set(theme_classic())
+```
+
+```{r load}
+path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
+# gnomad_pval <-
+#   read.delim(paste0(path, "/gnomAD_raw_data/chr2_test/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
+#               sep = " ")
+# gnomad_pval <-
+#   read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
+#               sep = " ")
+gnomad <-
+  read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
+              sep = " ")
+
+```
+
+```{r}
+# gnomad <- gnomad %>% 
+#   left_join(., gnomad_pval %>% 
+#               select(IDs, adjusted_pval),
+#             by = "IDs")
+
+# rm(gnomad_pval)
+```
+
+<br>
+
+***
+
+<br>
+
+## `r emo::ji("spiral_notepad")` Definition
+Mutation somatic status :  
+Information on whether the sample was reported to be Confirmed Somatic, Previously Reported or Variant of unknown origin  
+- Previously observed = when the mutation has been reported as somatic previously but not in current paper.  
+- Confirmed Somatic = if the mutation has been confimed to be somatic in the experiment by sequencing both the tumour and a matched normal from the same patient.  
+- Variant of unknown origin = when the mutation is known to be somatic but the tumour was sequenced without a matched normal.
+
+
+-- Found in INFO variable:  
+
+- Race/ethnicity (AC and AF available for each)  
+AC,Description="Alternate allele count for samples"  
+afr, African-American/African ancestry  
+amr, Latino ancestry  
+asj, Ashkenazi Jewish ancestry  
+eas, East Asian ancestry  
+sas, South Asian ancestry  
+fin, Finnish ancestry  
+nfe, Non-Finnish European ancestry  
+nfe_bgr, Bulgarian (Eastern European) ancestry  
+nfe_est, Estonian ancestry  
+nfe_nwe, North-Western European ancestry  
+nfe_onf, Other Non-Finnish European ancestry  
+nfe_seu, Southern European ancestry  
+nfe_swe, Swedish ancestry  
+oth, Other ancestry  
+
+AC_popmax, Description="Allele count in the population with the maximum AF"
+
+- Sex (AC and AF available for each)  
+AC_female, Description="Alternate allele count for female samples"  
+AC_male, Description="Alternate allele count for male samples"  
+
+- Age
+age_hist_het_bin_freq, Description="Histogram of ages of heterozygous individuals; bin edges are: 30.0|35.0|40.0|45.0|50.0|55.0|60.0|65.0|70.0|75.0|80.0; total number of individuals of any genotype bin: 2547|3423|4546|8487|10355|12693|11933|10534|8882|5991|4136|1935"  
+age_hist_het_n_larger, Description="Count of age values falling above highest histogram bin edge for heterozygous individuals"  
+age_hist_het_n_smaller, Description="Count of age values falling below lowest histogram bin edge for heterozygous individuals"  
+age_hist_hom_bin_freq, Description="Histogram of ages of homozygous alternate individuals; bin edges are: 30.0|35.0|40.0|45.0|50.0|55.0|60.0|65.0|70.0|75.0|80.0; total number of individuals of any genotype bin: 2547|3423|4546|8487|10355|12693|11933|10534|8882|5991|4136|1935"  
+age_hist_hom_n_larger, Description="Count of age values falling above highest histogram bin edge for homozygous alternate individuals"  
+age_hist_hom_n_smaller, Description="Count of age values falling below lowest histogram bin edge for homozygous alternate individuals"  
+
+- Allele/Variant info
+allele_type, Description="Allele type (snv, ins, del, or mixed)"  
+variant_type, Description="Variant type (snv, indel, multi-snv, multi-indel, or mixed)"  
+vep, Description="Consequence annotations from Ensembl VEP.  
+Format: Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|ALLELE_NUM|DISTANCE|STRAND|FLAGS|VARIANT_CLASS|MINIMISED|SYMBOL_SOURCE|HGNC_ID|CANONICAL|TSL|APPRIS|CCDS|ENSP|SWISSPROT|TREMBL|UNIPARC|GENE_PHENO|SIFT|PolyPhen|DOMAINS|HGVS_OFFSET|GMAF|AFR_MAF|AMR_MAF|EAS_MAF|EUR_MAF|SAS_MAF|AA_MAF|EA_MAF|ExAC_MAF|ExAC_Adj_MAF|ExAC_AFR_MAF|ExAC_AMR_MAF|ExAC_EAS_MAF|ExAC_FIN_MAF|ExAC_NFE_MAF|ExAC_OTH_MAF|ExAC_SAS_MAF|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|HIGH_INF_POS|MOTIF_SCORE_CHANGE|LoF|LoF_filter|LoF_flags|LoF_info"  
+was_mixed, Description="Variant type was mixed">
+
+- Population (AC and AF available for each)  
+gnomAD v2.1.1 
+gnomAD v2.1.1 (non-TOPMed): Only samples that are not present in the Trans-Omics for Precision Medicine (TOPMed)/BRAVO release. The allele counts in this subset can thus be added to those of BRAVO to federate both datasets.  
+gnomAD v2.1.1 (non-cancer): Only samples from individuals who were not ascertained for having cancer in a cancer study.  
+gnomAD v2.1.1 (non-neuro): Only samples from individuals who were not ascertained for having a neurological condition in a neurological case/control study.  
+gnomAD v2.1.1 (controls): Only samples from individuals who were not selected as a case in a case/control study of common disease.  
+
+<span style="color:red">**So we don't have general/precise number/info on race/eth, sex, pop for each variant**</span>
+
+<br>
+
+***
+
+<br>
+
+# I. Mean and effect size
+**CH R882H mutation is depicted in red**  
+bh adjusted_selected in yellow   
+effect size_selected in orange
+```{r plot}
+bhadjusted_selected <- paste0(c("2-25244379-G-C", 
+                                "2-25244494-C-T", "2-25248052-G-A", "2-25274935-C-T", 
+                                "2-25282744-G-A"),
+                              collapse = "|")
+effsize_selected <- paste0(c("2-25234321-G-A", "2-25234374-G-A",
+                                 "2-25328714-C-G", "2-25328736-G-A"),
+                              collapse = "|")
+
+gnomad %>% 
+  select(IDs, nbr_individuals, mann_w, adjusted_pval) %>% 
+  ggplot(aes(x= adjusted_pval, y= mann_w))+
+  geom_point(color= "grey")+
+  geom_point(data= gnomad %>% filter(IDs=="2-25234373-C-T"),
+             aes(x= adjusted_pval, y=mann_w), color= "red")+
+  geom_point(data= gnomad %>% 
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= adjusted_pval, y=mann_w), color= "yellow")+
+  geom_point(data= gnomad %>% 
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= adjusted_pval, y=mann_w), color= "orange")+
+  theme(legend.position = "none")
+
+gnomad %>% 
+  select(IDs, nbr_individuals, mann_w, adjusted_pval) %>% 
+  ggplot(aes(x= mann_w, y= nbr_individuals))+
+  geom_point(color= "grey")+
+  geom_point(data= gnomad %>% filter(IDs=="2-25234373-C-T"),
+             aes(x= mann_w, y=adjusted_pval), color= "red")+
+  geom_point(data= gnomad %>% 
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= mann_w, y=adjusted_pval), color= "yellow")+
+  geom_point(data= gnomad %>% 
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= mann_w, y=adjusted_pval), color= "orange")+
+  theme(legend.position = "none")
+
+gnomad %>% 
+  select(IDs, nbr_individuals, mann_w, adjusted_pval) %>% 
+  ggplot(aes(x= adjusted_pval, y= nbr_individuals))+
+  geom_point(color= "grey")+
+  geom_point(data= gnomad %>% filter(IDs=="2-25234373-C-T"),
+             aes(x= adjusted_pval, y=nbr_individuals), color= "red")+
+  geom_point(data= gnomad %>% 
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= adjusted_pval, y=nbr_individuals), color= "yellow")+
+  geom_point(data= gnomad %>% 
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= adjusted_pval, y=nbr_individuals), color= "orange")+
+  theme(legend.position = "none")
+```
+
+```{r plot1}
+# All <- gnomad %>% 
+#   filter(IDs == "All individuals"
+#   ) %>% 
+#   # mutate(IDs = "Reference") %>% 
+#   select(distribution_mean_ref = distribution_mean)
+# 
+# data_plot <- gnomad %>%
+#   # filter(IDs == i
+#   # ) %>% 
+#   select("IDs", distribution_mean, adjusted_pval) %>% 
+#   bind_cols(., All) %>% 
+#   mutate(effect = distribution_mean - distribution_mean_ref) # need to keep sup values
+
+# data_plot %>% 
+#   slice(1:20) %>% 
+#   ggplot(aes(x = IDs, y= effect, color= effect > 0
+#              #, color= IDs == "All individuals"
+#   ))+
+#   geom_point()+
+#   geom_hline(yintercept = 0)+
+#   coord_flip()
+```
+
+On all the variants
+```{r plot3}
+library(ggforce)
+# data_plot %>% 
+#   ggplot(aes(x= effect, y= adjusted_pval))+
+#   geom_point(color= "grey")+
+#   geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
+#              aes(x= effect, y=adjusted_pval), color= "red")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, bhadjusted_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "yellow")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, effsize_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "orange")+
+#   scale_y_log10()+
+#   labs(y= "BH pval (log10)")+
+#   theme(legend.position = "none")
+# 
+# data_plot %>% 
+#   ggplot(aes(x= effect, y= adjusted_pval))+
+#   geom_point(color= "grey")+
+#   geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
+#              aes(x= effect, y=adjusted_pval), color= "red")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, bhadjusted_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "yellow")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, effsize_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "orange")+
+#   scale_y_continuous(trans = trans_reverser('log10'))+
+#   # scale_y_continuous(trans = "log2")+
+#   labs(y= "BH pval (log10)")+
+#   theme(legend.position = "none")
+```
+
+On BH < 0.05
+```{r plot4}
+library(ggforce)
+# data_plot %>% 
+#   filter(adjusted_pval < 0.05) %>% 
+#   ggplot(aes(x= effect, y= adjusted_pval))+
+#   geom_point(color= "grey")+
+#   geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
+#              aes(x= effect, y=adjusted_pval), color= "red")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, bhadjusted_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "yellow")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, effsize_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "orange")+
+#   scale_y_log10()+
+#   labs(y= "BH pval (log10)")+
+#   theme(legend.position = "none")
+# 
+# data_plot %>% 
+#   filter(adjusted_pval < 0.05) %>% 
+#   ggplot(aes(x= effect, y= adjusted_pval))+
+#   geom_point(color= "grey")+
+#   geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
+#              aes(x= effect, y=adjusted_pval), color= "red")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, bhadjusted_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "yellow")+
+#   geom_point(data= data_plot %>% 
+#                filter(str_detect(IDs, effsize_selected)),
+#              aes(x= effect, y=adjusted_pval), color= "orange")+
+#   scale_y_continuous(trans = 'log2')+
+#   # scale_y_continuous(trans = "log2")+
+#   labs(y= "BH pval (log2)")+
+#   theme(legend.position = "none")
+```
+
+```{r recreate age bin}
+gnomad_decoded <- gnomad %>%
+  select(-age_bin, -sample_frequency, -sample_count, -nbr_individuals) %>% 
+  mutate(gene_in_gnomad = str_match(INFO, "(DNMT3A)(.*?)$")[,2]) %>% 
+  filter(IDs == "2-25457242-C-T" | IDs == "2-25234373-C-T" | gene_in_gnomad == "DNMT3A") %>%
+  # filter(INFO == "Arg882His" | gene_in_gnomad == "DNMT3A") %>% 
+  # mutate(prot_change = str_match(INFO, "(|R)(.*?)|$")[,2]) %>% 
+  # mutate(prot_change1 = str_match(INFO, "(|R)(.*?)|$")[,3]) %>% 
+  # slice(1:50) %>% 
+  # mutate(IDs = ifelse(IDs == "2-25234373-C-T", "2-25234373-C-T_R882H", IDs)) %>% 
+
+  mutate(age_hist_het_bin_freq = str_match(INFO, "age_hist_het_bin_freq=(.*?);")[,2]) %>%
+  # "Count of age values falling below lowest histogram bin edge for heterozygous individuals">
+  mutate("<30_het" = as.numeric(str_match(INFO, "age_hist_het_n_smaller=(.*?);")[,2])) %>%
+  # "Count of age values falling above highest histogram bin edge for heterozygous individuals">
+  mutate(">80_het" = as.numeric(str_match(INFO, "age_hist_het_n_larger=(.*?);")[,2])) %>% 
+  separate(col = age_hist_het_bin_freq,
+           into = c("30-35_het","35-40_het","40-45_het","45-50_het",
+                    "50-55_het","55-60_het","60-65_het","65-70_het",
+                    "70-75_het","75-80_het"), 
+           sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>% 
+  mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>% 
+
+  # 2. Extract count per age bin for heterozygous ind--
+  mutate(age_hist_hom_bin_freq = str_match(INFO, "age_hist_hom_bin_freq=(.*?);")[,2]) %>%
+  # "Count of age values falling below lowest histogram bin edge for homozygous individuals">
+  mutate("<30_hom" = as.numeric(str_match(INFO, "age_hist_hom_n_smaller=(.*?);")[,2])) %>%
+  # "Count of age values falling above highest histogram bin edge for homozygous individuals">
+  mutate(">80_hom" = as.numeric(str_match(INFO, "age_hist_hom_n_larger=(.*?);")[,2])) %>% 
+  separate(col = age_hist_hom_bin_freq,
+           into = c("30-35_hom","35-40_hom","40-45_hom","45-50_hom",
+                    "50-55_hom","55-60_hom","60-65_hom","65-70_hom",
+                    "70-75_hom","75-80_hom"), 
+           sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>% 
+  mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>% 
+  
+  # 3. Combine count for Het and hom individuals
+  mutate("<30" = rowSums(select(.,`30-35_het`,`30-35_hom`), na.rm = TRUE),
+         "30-35" = rowSums(select(.,`30-35_het`,`30-35_hom`), na.rm = TRUE),
+         "35-40" = rowSums(select(.,`35-40_het`,`35-40_hom`), na.rm = TRUE),
+         "40-45" = rowSums(select(.,`40-45_het`,`40-45_hom`), na.rm = TRUE),
+         "45-50" = rowSums(select(.,`45-50_het`,`45-50_hom`), na.rm = TRUE),
+         "50-55" = rowSums(select(.,`50-55_het`,`50-55_hom`), na.rm = TRUE),
+         "55-60" = rowSums(select(.,`55-60_het`,`55-60_hom`), na.rm = TRUE),
+         "60-65" = rowSums(select(.,`60-65_het`,`60-65_hom`), na.rm = TRUE),
+         "65-70" = rowSums(select(.,`65-70_het`,`65-70_hom`), na.rm = TRUE),
+         "70-75" = rowSums(select(.,`70-75_het`,`70-75_hom`), na.rm = TRUE),
+         "75-80" = rowSums(select(.,`75-80_het`,`75-80_hom`), na.rm = TRUE),
+         ">80" = rowSums(select(.,`>80_het`,`>80_hom`), na.rm = TRUE)
+         ) %>%
+  add_row("IDs"="All individuals", "ID"="All individuals of any genotype bin",
+          "<30" = 2547, "30-35" = 3423,
+          "35-40" = 4546,"40-45" = 8487,
+          "45-50" = 10355,"50-55" = 12693,
+          "55-60" = 11933,"60-65" = 10534,
+          "65-70" = 8882,"70-75" = 5991,
+          "75-80" = 4136,
+          ">80" = 1935) %>%
+  mutate(nbr_individuals = rowSums(select(.,`<30`:`>80`), na.rm = TRUE)) %>%
+  
+  select(-c(ends_with("_het"), ends_with("_hom"), bin_age)) %>% 
+  
+  select(IDs, everything())
+```
+
+```{r recreate age bin2}
+gnomad_decoded <- gnomad_decoded %>% 
+  pivot_longer(cols = c(grep("[[:digit:]]", colnames(.))), 
+               names_to = "age_bin", values_to = "sample_count") %>% 
+  mutate(age_bin = factor(age_bin, 
+                          levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
+                                     "55-60","60-65","65-70","70-75","75-80", ">80"
+                                     ))) %>% 
+  mutate(bin_age = case_when(
+    # The average age at diagnosis is 8 overall (ages 0 to 19), 
+    # 5 years old for children (aged 0 to 14), and 17 years old 
+    # for adolescents (aged 15 to 19), while adults' average 
+    # age for cancer diagnosis is 65
+    str_detect(age_bin, "<30")              ~ 15, 
+    str_detect(age_bin, "30-35")            ~ 32.5,
+    str_detect(age_bin, "35-40")            ~ 37.5,
+    str_detect(age_bin, "40-45")            ~ 42.5,
+    str_detect(age_bin, "45-50")            ~ 47.5,
+    str_detect(age_bin, "50-55")            ~ 52.5,
+    str_detect(age_bin, "55-60")            ~ 57.5,
+    str_detect(age_bin, "60-65")            ~ 62.5,
+    str_detect(age_bin, "65-70")            ~ 67.5,
+    str_detect(age_bin, "70-75")            ~ 72.5,
+    str_detect(age_bin, "75-80")            ~ 77.5,
+    TRUE ~ 90
+  )) %>% 
+  mutate(sample_frequency = sample_count / nbr_individuals)
+```
+
+<!-- <!-- Found in Cosmic data --> -->
+
+```{r load cosmic}
+# cosmic <-
+#   read.delim(paste0(path, "/cosmic_raw_data/cosmic_DNMT3_data.vcf.gz"),
+#              header = FALSE,
+#              col.names = c("Gene.name", "Accession.Number", "Gene.CDS.length", "HGNC.ID", "Sample.name",
+#                            "ID_sample", "ID_tumour", "Primary.site", "Site.subtype.1", "Site.subtype.2",
+#                            "Site.subtype.3", "Primary.histology", "Histology.subtype.1", "Histology.subtype.2",
+#                            "Histology.subtype.3", "Genome.wide.screen", "GENOMIC_MUTATION_ID",
+#                            "LEGACY_MUTATION_ID", "MUTATION_ID", "Mutation.CDS", "Mutation.AA",
+#                            "Mutation.Description", "Mutation.zygosity", "LOH", "GRCh",
+#                            "Mutation.genome.position", "Mutation.strand", "Resistance.Mutation",
+#                            "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status", "Pubmed_PMID",
+#                            "ID_STUDY", "Sample.Type", "Tumour.origin", "Age", "HGVSP", "HGVSC", "HGVSG"))
+
+cosmic <-
+  read.delim(paste0(path, "/cosmic_raw_data/splitted_data/filter_cosmic_withIDs/chr2_cosmic.vcf.gz"),
+              sep = " ")
+```
+
+```{r}
+# cosmic <-
+#   cosmic %>%
+#   mutate(modification = str_match(HGVSG, "(delins|ins|del|dup)(.*?)$")[,2],
+#          aa_inserted = case_when(
+#            modification %in% c("ins", "delins")   ~ str_match(HGVSG, "(delins|ins|del|dup)(.*?)$")[,3],
+#            TRUE                                   ~ NA_character_
+#          )) %>%
+# 
+#   separate(HGVSG, into = c("chr", "chr_arm", "POS", "ALT"), sep = ":|\\.|>|delins|dup|del", remove = FALSE) %>%
+#   mutate(REF = str_match(POS, "([0-9]*)([A-Z]*)")[,3]) %>%
+#   mutate(POS = str_match(POS, "([0-9]*)([A-Z]*)")[,2],
+#          POS = as.numeric(POS)) %>%
+#   # separate(Mutation.genome.position, into = c("chr", "start", "end"), sep = ":|-", remove = FALSE) %>%
+#   unite(IDs, c(chr, POS, REF, ALT), sep = "-", remove = FALSE) %>% #select(IDs, everything())
+#   # separate(HGVSG, into = c("ENSP", "p_prot_modif"), sep = ":", remove = FALSE) %>%
+#   mutate(IDs = case_when(
+#     IDs == "-NA-NA-NA"                 ~ NA_character_,
+#     TRUE                               ~ IDs
+#   )) %>%
+#   separate(`Gene.name`, into = c("gene_name_cosmic"), sep = "_", remove = FALSE) %>%
+#   # 1 tumor can have multiple sample
+#   distinct(IDs, ID_tumour, .keep_all = TRUE) %>%
+#   arrange(IDs) %>%
+#   select(IDs, "Gene.name", gene_name_cosmic, Gene.name, "Accession.Number", "chr", "POS", REF, "ALT", HGVSG, everything())
+```
+
+```{r}
+# cosmic <- cosmic %>%
+#   group_by(IDs, gene_name_cosmic, chr, POS, REF, ALT) %>%
+#   mutate(occurrence_in_cosmic = n())
+
+# max_occurence = max(cosmic$occurrence_in_cosmic)
+# cosmic1 <- cosmic %>% ###################################### Clean up here--------------------------------
+# 
+#   # distinct()
+#   group_by(IDs, gene_name_cosmic, chr, POS, REF, ALT,
+#            HGNC.ID,
+#            HGVSP, ###################################### Clean up here--------------------------------
+#            FATHMM.prediction, FATHMM.score,
+# 
+#            occurrence_in_cosmic) %>%
+#   summarise_at(vars(Accession.Number, HGVSG,
+#                     Gene.CDS.length,
+#     Mutation.CDS,
+#           Mutation.AA,
+#           Primary.site,
+#           Mutation.Description,
+#     Mutation.genome.position,
+#           Primary.histology,
+#           Histology.subtype.1, Histology.subtype.2, Histology.subtype.3,
+#           HGVSC,
+#           Mutation.somatic.status, Pubmed_PMID,
+#           Sample.Type, Tumour.origin, Age), str_c, collapse = "; ") %>%
+#   ungroup() %>%
+#   separate(Age, paste("Age", 1:max(max_occurence), sep = "_"),
+#            sep = "; ", remove = TRUE,
+#            extra = "warn", fill = "right") %>%
+#   purrr::keep(~!all(is.na(.))) %>%
+#   mutate(across(starts_with("Age_"), ~ as.numeric(.))) %>%
+# 
+#   mutate(average_age = rowMeans(select(., starts_with("Age")), na.rm = TRUE)) %>%
+#   mutate(variant_in_cosmic = "Yes")
+```
+
+```{r bind cosmic Ids}
+gnomad_decoded <- left_join(gnomad_decoded %>%
+                              mutate(X.CHROM = as.character(X.CHROM)),
+                            cosmic %>%
+                              mutate(chr = as.character(chr)),
+                            by = c("IDs", "X.CHROM" = "chr", "POS", "REF", "ALT"))
+```
+
+# II. Plots all variants
+**R882H is curve #6 aka 2-25234373-C-T.**
+```{r Plots all variants}
+# mann_w <-  data.frame(matrix(nrow=1, ncol=0)) 
+effect_size <-  data.frame(matrix(nrow=1, ncol=0)) 
+effect_size_cat <-  data.frame(matrix(nrow=1, ncol=0)) 
+
+n <- 0
+
+set.seed(1234)
+
+for(i in unique(gnomad_decoded$IDs)) {
+  
+  All <- gnomad_decoded %>% 
+    filter(IDs == "All individuals"
+  ) %>% 
+    mutate(IDs = "Reference")
+  data_plot <- gnomad_decoded %>% 
+    filter(IDs == i
+    ) %>% 
+    bind_rows(., All) %>%
+    distinct(IDs, bin_age, .keep_all = TRUE) # %>% 
+    # select(IDs, age_bin, sample_frequency,
+    #        bin_age, #distribution_mean,
+    #        nbr_individuals, mann_pval, adjusted_pval,
+    #        
+    #        HGVSP, occurrence_in_cosmic, 
+    #        Mutation.somatic.status,
+    #        variant_in_cosmic, #prot_change, 
+    #        adjusted_pval)
+  n <- n + 1
+  p <- data_plot %>%
+    ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+
+    # ggplot(aes(x = age_bin, y= sample_frequency, color= IDs))+
+    # geom_bar(stat = "identity", aes(alpha= IDs))
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+                # method.args=list(family=quasibinomial)#,
+                span = 0.6
+    )+
+    labs(title = n)+
+    geom_col(data = data_plot %>%
+               filter(IDs == i) ,
+             aes(x= bin_age, y= sample_frequency),
+             position = "identity",
+             fill = "red",
+             alpha = 0.1)+
+    ylim(0, max(data_plot$sample_frequency))
+  # 
+  # p_ <- layer_data(p, 1) %>% 
+  # mutate(colour =  as.factor(colour)) %>% 
+  # mutate_if(is.numeric, ~replace(., is.na(.), 0))
+  # 
+  # variant <- p_ %>% filter(group == 1)
+  # variant <- sample(variant$x, 180, prob = variant$y, replace = TRUE)
+  # ref <- p_ %>% filter(group == 2)
+  # ref <- sample(ref$x, 180, prob = ref$y, replace = TRUE)
+  # 
+  # # result1 <- wilcox.test(variant, ref, alternative = "greater")$p.value
+  # # mann_w <- rbind(mann_w, result1)
+  # 
+  # result2 <- cohen.d(variant, ref, hedges.correction=TRUE)$estimate
+  # effect_size <- rbind(effect_size, result2)
+  # result3 <- cohen.d(variant, ref,hedges.correction=TRUE)$magnitude[1] %>% 
+  #   as_tibble() %>%
+  #   mutate(value = case_when(
+  #     value == "negligible"   ~ "negligible",
+  #     value == "small"        ~ "small",
+  #     value == "medium"       ~ "medium",
+  #     value == "large"        ~ "large"
+  #   ))
+  # effect_size_cat <- rbind(effect_size_cat, result3)
+  
+  p <- p+
+    # geom_vline(xintercept = data_plot$distribution_mean, color= "red")+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW= ", round(mann_pval, 3))),
+      colour = "black",
+      hjust   = 0,
+      vjust   = -9
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("BH= ", round(adjusted_pval, 3))),
+      colour = "black",
+      hjust   = 0,
+      vjust   = -11
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(effect_size, 3))),
+      hjust   = 0,
+      vjust   = -17
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", effect_size_cat)),
+      hjust   = 0,
+      vjust   = -15
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_individuals= ", nbr_individuals)),
+      colour = "darkblue",
+      hjust   = 0,
+      vjust   = -min(data_plot$sample_frequency)
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste("Is in cosmic?", variant_in_cosmic,",",Mutation.somatic.status)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -35
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("HGVSP= ", HGVSP)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -33
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("occurrence= ", occurrence_in_cosmic)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -31
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene.name= ", Gene.name)),
+      colour = "blue",
+      hjust   = -2,
+      vjust   = -29
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene_in_gnomad= ", gene_in_gnomad)),
+      colour = "blue",
+      hjust   = -1.15,
+      vjust   = -27
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene_name_cosmic= ", gene_name_cosmic)),
+      colour = "blue",
+      hjust   = -1.29,
+      vjust   = -25
+    )
+  
+  print(p)
+
+}
+```
+
+
+```{r}
+# mann_w <- mann_w %>% `colnames<-`(c("mann_w")) %>% 
+#   mutate(IDs = c(unique(gnomad_decoded$IDs)))
+# effect_size <- effect_size %>% `colnames<-`(c("effect_size"))%>% 
+#   mutate(IDs = c(unique(gnomad_decoded$IDs)))
+# effect_size_cat <- effect_size_cat %>% `colnames<-`(c("effect_size_cat"))
+# 
+# stat_measure <- bind_cols(effect_size, effect_size_cat) %>% 
+#   left_join(gnomad_decoded, .,
+#   by= "IDs")
+stat_measure <- gnomad_decoded
+# print(head(stat_measure))
+```
+
+```{r}
+stat_measure %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x= effect_size, y= adjusted_pval))+
+  geom_point(color= "grey")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(IDs=="2-25234373-C-T"),
+             aes(x= effect_size, y=adjusted_pval), color= "red")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= effect_size, y=adjusted_pval), color= "yellow")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= effect_size, y=adjusted_pval), color= "orange")
+
+stat_measure %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x= effect_size, y= adjusted_pval))+
+  geom_point(color= "grey")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(IDs=="2-25234373-C-T"),
+             aes(x= effect_size, y=adjusted_pval), color= "red")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= effect_size, y=adjusted_pval), color= "yellow")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= effect_size, y=adjusted_pval), color= "orange")+
+  scale_y_log10()+
+  labs(x= "Hedges g effect size", y= "BH pval (log10)")+
+  theme(legend.position = "none")
+
+stat_measure %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x= effect_size, y= adjusted_pval))+
+  geom_point(color= "grey")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>%
+               filter(IDs=="2-25234373-C-T"),
+             aes(x= effect_size, y=adjusted_pval), color= "red")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= effect_size, y=adjusted_pval), color= "yellow")+
+  geom_point(data= stat_measure %>% 
+               distinct(IDs, .keep_all = TRUE) %>% 
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= effect_size, y=adjusted_pval), color= "orange")+
+  scale_y_continuous(trans = 'log2')+
+  # scale_y_continuous(trans = "log2")+
+  labs(x= "Hedges g effect size", y= "BH pval (log2)")+
+  theme(legend.position = "none")
+```
+
+# III. Plots for BH ≤ 0.1
+**R882H is curve #2 aka 2-25234373-C-T.**
+```{r}
+selected_variants <- stat_measure %>% filter(adjusted_pval <= 0.1)
+n <- 0
+
+set.seed(1234)
+
+for(i in unique(selected_variants$IDs)) {
+  
+  All <- gnomad_decoded %>% 
+    filter(IDs == "All individuals"
+  ) %>% 
+    mutate(IDs = "Reference")
+  data_plot <- selected_variants %>% 
+    filter(IDs == i
+    ) %>% 
+    bind_rows(., All) %>%
+    distinct(IDs, bin_age, .keep_all = TRUE) # %>% 
+    # select(IDs, age_bin, sample_frequency,
+    #        bin_age, #distribution_mean,
+    #        nbr_individuals, mann_pval, adjusted_pval,
+    #        effect_size, effect_size_cat,
+    #        HGVSP, occurrence_in_cosmic, 
+    #        Mutation.somatic.status,
+    #        variant_in_cosmic, #prot_change, 
+    #        adjusted_pval)
+  n <- n + 1
+  p <- data_plot %>% 
+    ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+
+    # ggplot(aes(x = age_bin, y= sample_frequency, color= IDs))+
+    # geom_bar(stat = "identity", aes(alpha= IDs))
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+                # method.args=list(family=quasibinomial)#,
+                span = 0.6
+    )+
+    labs(title = n)+
+    geom_col(data = data_plot %>% 
+               filter(IDs == i) ,
+             aes(x= bin_age, y= sample_frequency),
+             position = "identity",
+             fill = "red",
+             alpha = 0.1)+
+    ylim(0, max(data_plot$sample_frequency))
+  
+  p <- p+
+    # geom_vline(xintercept = data_plot$distribution_mean, color= "red")+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW= ", round(mann_pval, 3))),
+      colour = "black",
+      hjust   = 0,
+      vjust   = -9
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("BH= ", round(adjusted_pval, 3))),
+      colour = "black",
+      hjust   = 0,
+      vjust   = -11
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(effect_size, 3))),
+      hjust   = 0,
+      vjust   = -17
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", effect_size_cat)),
+      hjust   = 0,
+      vjust   = -15
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste("Is in cosmic?", variant_in_cosmic,",",Mutation.somatic.status)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -35
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("HGVSP= ", HGVSP)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -33
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("occurrence= ", occurrence_in_cosmic)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -31
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene.name= ", Gene.name)),
+      colour = "blue",
+      hjust   = -2,
+      vjust   = -29
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene_in_gnomad= ", gene_in_gnomad)),
+      colour = "blue",
+      hjust   = -1.15,
+      vjust   = -27
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene_name_cosmic= ", gene_name_cosmic)),
+      colour = "blue",
+      hjust   = -1.29,
+      vjust   = -25
+    )
+  
+  print(p)
+
+}
+```
+
+# IV. Plots Hedges > small
+**R882H is curve #2 aka 2-25234373-C-T.**
+```{r}
+selected_variants <- selected_variants %>% filter(!str_detect(effect_size_cat, "negligible|small"))
+n <- 0
+
+set.seed(1234)
+
+for(i in unique(selected_variants$IDs)) {
+  
+  All <- gnomad_decoded %>% 
+    filter(IDs == "All individuals"
+  ) %>% 
+    mutate(IDs = "Reference")
+  data_plot <- selected_variants %>% 
+    filter(IDs == i
+    ) %>% 
+    bind_rows(., All) %>%
+    distinct(IDs, bin_age, .keep_all = TRUE) #%>% 
+    # select(IDs, age_bin, sample_frequency,
+    #        bin_age, #distribution_mean,
+    #        nbr_individuals, mann_pval, adjusted_pval,
+    #        effect_size, effect_size_cat,
+    #        HGVSP, occurrence_in_cosmic, 
+    #        Mutation.somatic.status,
+    #        variant_in_cosmic, #prot_change, 
+    #        adjusted_pval)
+  n <- n + 1
+  p <- data_plot %>% 
+    ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+
+    # ggplot(aes(x = age_bin, y= sample_frequency, color= IDs))+
+    # geom_bar(stat = "identity", aes(alpha= IDs))
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+                # method.args=list(family=quasibinomial)#,
+                span = 0.6
+    )+
+    labs(title = n)+
+    geom_col(data = data_plot %>% 
+               filter(IDs == i) ,
+             aes(x= bin_age, y= sample_frequency),
+             position = "identity",
+             fill = "red",
+             alpha = 0.1)+
+    ylim(0, max(data_plot$sample_frequency))
+  
+  p <- p+
+    # geom_vline(xintercept = data_plot$distribution_mean, color= "red")+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW= ", round(mann_pval, 3))),
+      colour = "black",
+      hjust   = 0,
+      vjust   = -9
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("BH= ", round(adjusted_pval, 3))),
+      colour = "black",
+      hjust   = 0,
+      vjust   = -11
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(effect_size, 3))),
+      hjust   = 0,
+      vjust   = -17
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", effect_size_cat)),
+      hjust   = 0,
+      vjust   = -15
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste("Is in cosmic?", variant_in_cosmic,",",Mutation.somatic.status)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -35
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("HGVSP= ", HGVSP)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -33
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("occurrence= ", occurrence_in_cosmic)),
+      colour = "purple",
+      hjust   = 0,
+      vjust   = -31
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene.name= ", Gene.name)),
+      colour = "blue",
+      hjust   = -2,
+      vjust   = -29
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene_in_gnomad= ", gene_in_gnomad)),
+      colour = "blue",
+      hjust   = -1.15,
+      vjust   = -27
+    )+
+    geom_text(
+      data    = data_plot %>%
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene_name_cosmic= ", gene_name_cosmic)),
+      colour = "blue",
+      hjust   = -1.29,
+      vjust   = -25
+    )
+  
+  print(p)
+
+}
+```
+
+
+# V. Analysis
+
+## 1. Gene
+```{r}
+stat_measure %>% 
+  select(IDs, Sample.name, occurrence_in_cosmic)
+
+stat_measure %>% 
+  filter(variant_in_cosmic == "Yes") %>% 
+  select(IDs, Sample.name, occurrence_in_cosmic)
+
+stat_measure %>% 
+  select(Gene.name, gene_in_gnomad, gene_name_cosmic)
+
+stat_measure %>% 
+  select(gene_in_gnomad, INFO) %>% 
+  slice(1)
+```
+
+## 2. VEP for 1st variant
+```{r}
+stat_measure1 <- stat_measure %>%
+  slice(1)
+```
+
+```{r}
+vep_in_gnomAD <- stat_measure1 %>%
+  mutate(ens_vep = str_match(INFO, ";vep=(.*?)$")[,2])
+vep_in_gnomAD <- vep_in_gnomAD %>%
+  separate(col = ens_vep, paste("ens_vep", 1:25, sep=""),
+           sep = ",", remove = T, extra = "warn", fill = "right") %>%
+  keep(~!all(is.na(.))) %>%
+  pivot_longer(cols = starts_with("ens_vep"), names_to = NULL, values_to = "ens_vep") %>%
+  drop_na(ens_vep)
+
+vep_in_gnomAD %>% 
+  select(gene_in_gnomad, ens_vep) 
+```
+
+
+```{r}
+ens_vep_var_names <- c("Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type",
+                       "Feature", "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp",
+                       "cDNA_position", "CDS_position", "Protein_position", "Amino_acids",
+                       "Codons", "Existing_variation", "ALLELE_NUM", "DISTANCE", "STRAND",
+                       "FLAGS", "VARIANT_CLASS", "MINIMISED", "SYMBOL_SOURCE", "HGNC_ID",
+                       "CANONICAL", "TSL", "APPRIS", "CCDS", "ENSP", "SWISSPROT", "TREMBL",
+                       "UNIPARC", "GENE_PHENO", "SIFT", "PolyPhen", "DOMAINS", "HGVS_OFFSET",
+                       "GMAF", "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "SAS_MAF", "AA_MAF",
+                       "EA_MAF", "ExAC_MAF", "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF",
+                       "ExAC_EAS_MAF", "ExAC_FIN_MAF", "ExAC_NFE_MAF", "ExAC_OTH_MAF",
+                       "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO", "PUBMED", "MOTIF_NAME",
+                       "MOTIF_POS", "HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF", "LoF_filter",
+                       "LoF_flags", "LoF_info")
+
+vep_in_gnomAD <- vep_in_gnomAD %>%
+  separate(col = ens_vep, into = ens_vep_var_names,
+           sep = "\\|", remove = F, extra = "warn", fill = "right")
+
+vep_in_gnomAD %>%
+  select(IDs, SYMBOL, Consequence, HGVSp,
+         "Feature_type", "BIOTYPE", "HGVSc", "HGVSp", "Protein_position", "Amino_acids",
+         "VARIANT_CLASS", "SIFT", "PolyPhen",
+         "GMAF",
+         "AFR_MAF", "AMR_MAF", "EAS_MAF", "EUR_MAF", "SAS_MAF", "AA_MAF", "EA_MAF", "ExAC_MAF",
+         "ExAC_Adj_MAF", "ExAC_AFR_MAF", "ExAC_AMR_MAF", "ExAC_EAS_MAF", "ExAC_FIN_MAF",
+         "ExAC_NFE_MAF", "ExAC_OTH_MAF", "ExAC_SAS_MAF", "CLIN_SIG", "SOMATIC", "PHENO",
+         "MOTIF_NAME", "MOTIF_POS", "HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "LoF",
+         "LoF_filter", "LoF_flags", "LoF_info")
+```
+
+# VI. Gencode
+Download the GTF file Release 42 (GRCh38.p13) : Comprehensive gene annotation	CHR	 
+It contains the comprehensive gene annotation on the reference chromosomes only  
+https://www.gencodegenes.org/pages/data_format.html
+```{r}
+gencode <-
+  read.delim(#"~/Downloads/gencode.v42.annotation.gtf.gz", 
+             paste0(path, "/gnomAD_skweness/data/gencode.v42.annotation.gtf.gz"),
+             comment.char="#",
+              # sep = " "
+             col.names = c("chromosome", "annotation source", "feature type",
+                           "genomic start location", "genomic end location", 
+                           "score(not used)", "genomic strand", "genomic phase (for CDS features)",
+                           "additional information as key-value pairs")
+              ) %>% 
+  janitor::clean_names()
+
+a <- gencode %>% 
+  slice(2100000 : 2105000) %>% head()
+
+a %>% 
+  mutate(chrom = str_match(chromosome, "chr(.*)")[,2]) %>% 
+  mutate(gene_id = str_match(additional_information_as_key_value_pairs, 
+                             "gene_id (.*?);")[,2]) %>% 
+  mutate(transcript_id = str_match(additional_information_as_key_value_pairs, 
+                                   "transcript_id (.*?);")[,2]) %>% 
+  mutate(gene_type = str_match(additional_information_as_key_value_pairs, 
+                               "gene_type (.*?);")[,2]) %>% 
+  mutate(gene_name = str_match(additional_information_as_key_value_pairs, 
+                               "gene_name (.*?);")[,2]) %>% 
+  mutate(transcript_type = str_match(additional_information_as_key_value_pairs, 
+                                     "transcript_type (.*?);")[,2]) %>% 
+  mutate(transcript_name = str_match(additional_information_as_key_value_pairs, 
+                                     "transcript_name (.*?);")[,2]) %>% 
+  select(chrom, genomic_start_location, genomic_end_location, gene_id, 
+         gene_type, gene_name, transcript_type, transcript_name)
+
+DNMT3A_in_gencode <- gencode %>% 
+  mutate(gene_in_gencode = str_match(additional_information_as_key_value_pairs, 
+                                     "(DNMT3A)(.*?)$")[,2]) %>% 
+  filter(gene_in_gencode == "DNMT3A") %>% 
+  mutate(chrom = (str_match(chromosome, "chr(.*)")[,2])) %>% 
+  mutate(gene_id = str_match(additional_information_as_key_value_pairs, 
+                             "gene_id (.*?);")[,2]) %>% 
+  mutate(transcript_id = str_match(additional_information_as_key_value_pairs, 
+                                   "transcript_id (.*?);")[,2]) %>% 
+  mutate(gene_type = str_match(additional_information_as_key_value_pairs, 
+                               "gene_type (.*?);")[,2]) %>% 
+  mutate(gene_name = str_match(additional_information_as_key_value_pairs, 
+                               "gene_name (.*?);")[,2]) %>% 
+  mutate(transcript_type = str_match(additional_information_as_key_value_pairs, 
+                                     "transcript_type (.*?);")[,2]) %>% 
+  mutate(transcript_name = str_match(additional_information_as_key_value_pairs, 
+                                     "transcript_name (.*?);")[,2]) %>% 
+  select(chrom, genomic_start_location, genomic_end_location, gene_id, 
+         gene_type, gene_name, transcript_type, transcript_name)
+  
+```
+
+## Merging with DNMT3A in gnomAD
+```{r}
+stat_measure %>% select(IDs, X.CHROM, POS, REF, ALT) %>% 
+  inner_join(., DNMT3A_in_gencode,
+             by = c("X.CHROM" = "chrom", "POS" = "genomic_start_location"))
+
+stat_measure %>% select(IDs, X.CHROM, POS, REF, ALT) %>% 
+  inner_join(., DNMT3A_in_gencode,
+             by = c("X.CHROM" = "chrom", "POS" = "genomic_end_location"))
+```
+
+```{r}
+gnomad %>% select(IDs, X.CHROM, POS, REF, ALT) %>% 
+  mutate(X.CHROM = as.character(X.CHROM)) %>% 
+  inner_join(., DNMT3A_in_gencode,
+             by = c("X.CHROM" = "chrom", "POS" = "genomic_start_location"))
+```
+
+
+
