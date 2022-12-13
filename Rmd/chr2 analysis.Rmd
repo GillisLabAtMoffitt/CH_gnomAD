@@ -229,7 +229,7 @@ gnomad %>%
 #   coord_flip()
 ```
 
-On all the variants
+<!-- On all the variants -->
 ```{r plot3}
 library(ggforce)
 # data_plot %>% 
@@ -264,7 +264,7 @@ library(ggforce)
 #   theme(legend.position = "none")
 ```
 
-On BH < 0.05
+<!-- On BH < 0.05 -->
 ```{r plot4}
 library(ggforce)
 # data_plot %>% 
@@ -300,6 +300,241 @@ library(ggforce)
 #   labs(y= "BH pval (log2)")+
 #   theme(legend.position = "none")
 ```
+
+|**Mutation Consequence in gnomAD**                                                                                           | **N = 12,003,450** |
+|:----------------------------------------------------------------------------------------------------------------------------|:------------------:|
+|__Consequence__                                                                                                              |                    |
+|3_prime_UTR_variant                                                                                                          |   159,202 (1.3%)   |
+|3_prime_UTR_variant&NMD_transcript_variant                                                                                   |   187,791 (1.6%)   |
+|5_prime_UTR_variant                                                                                                          |   134,118 (1.1%)   |
+|5_prime_UTR_variant&NMD_transcript_variant                                                                                   |   13,401 (0.1%)    |
+|coding_sequence_variant                                                                                                      |    214 (<0.1%)     |
+|coding_sequence_variant&3_prime_UTR_variant                                                                                  |    176 (<0.1%)     |
+|coding_sequence_variant&3_prime_UTR_variant&NMD_transcript_variant                                                           |     17 (<0.1%)     |
+|coding_sequence_variant&5_prime_UTR_variant                                                                                  |    102 (<0.1%)     |
+|coding_sequence_variant&5_prime_UTR_variant&NMD_transcript_variant                                                           |     28 (<0.1%)     |
+|coding_sequence_variant&NMD_transcript_variant                                                                               |     87 (<0.1%)     |
+|downstream_gene_variant                                                                                                      |  2,293,818 (19%)   |
+|frameshift_variant                                                                                                           |   28,582 (0.2%)    |
+|frameshift_variant&NMD_transcript_variant                                                                                    |   3,203 (<0.1%)    |
+|frameshift_variant&splice_region_variant                                                                                     |   1,479 (<0.1%)    |
+|frameshift_variant&splice_region_variant&intron_variant                                                                      |     26 (<0.1%)     |
+|frameshift_variant&splice_region_variant&NMD_transcript_variant                                                              |     96 (<0.1%)     |
+|frameshift_variant&splice_region_variant&stop_retained_variant                                                               |     1 (<0.1%)      |
+|frameshift_variant&splice_region_variant&stop_retained_variant&NMD_transcript_variant                                        |     1 (<0.1%)      |
+|frameshift_variant&start_lost                                                                                                |     83 (<0.1%)     |
+|frameshift_variant&start_lost&NMD_transcript_variant                                                                         |     20 (<0.1%)     |
+|frameshift_variant&stop_lost                                                                                                 |    196 (<0.1%)     |
+|frameshift_variant&stop_lost&NMD_transcript_variant                                                                          |     17 (<0.1%)     |
+|frameshift_variant&stop_lost&splice_region_variant                                                                           |     5 (<0.1%)      |
+|frameshift_variant&stop_lost&splice_region_variant&NMD_transcript_variant                                                    |     1 (<0.1%)      |
+|frameshift_variant&stop_retained_variant                                                                                     |     70 (<0.1%)     |
+|frameshift_variant&stop_retained_variant&NMD_transcript_variant                                                              |     4 (<0.1%)      |
+|incomplete_terminal_codon_variant                                                                                            |     1 (<0.1%)      |
+|incomplete_terminal_codon_variant&coding_sequence_variant                                                                    |    372 (<0.1%)     |
+|incomplete_terminal_codon_variant&coding_sequence_variant&3_prime_UTR_variant                                                |     13 (<0.1%)     |
+|inframe_deletion                                                                                                             |   24,388 (0.2%)    |
+|inframe_deletion&NMD_transcript_variant                                                                                      |   2,606 (<0.1%)    |
+|inframe_deletion&splice_region_variant                                                                                       |    340 (<0.1%)     |
+|inframe_deletion&splice_region_variant&NMD_transcript_variant                                                                |     20 (<0.1%)     |
+|inframe_insertion                                                                                                            |   8,525 (<0.1%)    |
+|inframe_insertion&coding_sequence_variant                                                                                    |     1 (<0.1%)      |
+|inframe_insertion&NMD_transcript_variant                                                                                     |    712 (<0.1%)     |
+|inframe_insertion&splice_region_variant                                                                                      |    226 (<0.1%)     |
+|inframe_insertion&splice_region_variant&NMD_transcript_variant                                                               |     16 (<0.1%)     |
+|inframe_insertion&stop_retained_variant                                                                                      |     6 (<0.1%)      |
+|intergenic_variant                                                                                                           |   1,235 (<0.1%)    |
+|intron_variant                                                                                                               |  2,411,266 (20%)   |
+|intron_variant&NMD_transcript_variant                                                                                        |   377,703 (3.1%)   |
+|intron_variant&non_coding_transcript_variant                                                                                 |   812,342 (6.8%)   |
+|mature_miRNA_variant                                                                                                         |    503 (<0.1%)     |
+|missense_variant                                                                                                             |  1,298,410 (11%)   |
+|missense_variant&NMD_transcript_variant                                                                                      |   83,818 (0.7%)    |
+|missense_variant&splice_region_variant                                                                                       |   35,430 (0.3%)    |
+|missense_variant&splice_region_variant&NMD_transcript_variant                                                                |   2,612 (<0.1%)    |
+|non_coding_transcript_exon_variant&non_coding_transcript_variant                                                             |   789,417 (6.6%)   |
+|non_coding_transcript_variant                                                                                                |     19 (<0.1%)     |
+|protein_altering_variant                                                                                                     |    218 (<0.1%)     |
+|protein_altering_variant&incomplete_terminal_codon_variant                                                                   |     2 (<0.1%)      |
+|protein_altering_variant&NMD_transcript_variant                                                                              |     69 (<0.1%)     |
+|protein_altering_variant&splice_region_variant                                                                               |     30 (<0.1%)     |
+|protein_altering_variant&splice_region_variant&NMD_transcript_variant                                                        |     3 (<0.1%)      |
+|regulatory_region_variant                                                                                                    |   379,867 (3.2%)   |
+|splice_acceptor_variant                                                                                                      |   5,933 (<0.1%)    |
+|splice_acceptor_variant&3_prime_UTR_variant                                                                                  |     2 (<0.1%)      |
+|splice_acceptor_variant&3_prime_UTR_variant&intron_variant                                                                   |     5 (<0.1%)      |
+|splice_acceptor_variant&3_prime_UTR_variant&intron_variant&NMD_transcript_variant                                            |     46 (<0.1%)     |
+|splice_acceptor_variant&3_prime_UTR_variant&NMD_transcript_variant                                                           |     39 (<0.1%)     |
+|splice_acceptor_variant&5_prime_UTR_variant                                                                                  |     35 (<0.1%)     |
+|splice_acceptor_variant&5_prime_UTR_variant&intron_variant                                                                   |     28 (<0.1%)     |
+|splice_acceptor_variant&5_prime_UTR_variant&intron_variant&NMD_transcript_variant                                            |     1 (<0.1%)      |
+|splice_acceptor_variant&5_prime_UTR_variant&NMD_transcript_variant                                                           |     2 (<0.1%)      |
+|splice_acceptor_variant&coding_sequence_variant                                                                              |    274 (<0.1%)     |
+|splice_acceptor_variant&coding_sequence_variant&3_prime_UTR_variant                                                          |     2 (<0.1%)      |
+|splice_acceptor_variant&coding_sequence_variant&3_prime_UTR_variant&intron_variant                                           |     15 (<0.1%)     |
+|splice_acceptor_variant&coding_sequence_variant&3_prime_UTR_variant&intron_variant&NMD_transcript_variant                    |     1 (<0.1%)      |
+|splice_acceptor_variant&coding_sequence_variant&5_prime_UTR_variant&intron_variant                                           |     12 (<0.1%)     |
+|splice_acceptor_variant&coding_sequence_variant&5_prime_UTR_variant&intron_variant&NMD_transcript_variant                    |     4 (<0.1%)      |
+|splice_acceptor_variant&coding_sequence_variant&intron_variant                                                               |    539 (<0.1%)     |
+|splice_acceptor_variant&coding_sequence_variant&intron_variant&NMD_transcript_variant                                        |     42 (<0.1%)     |
+|splice_acceptor_variant&coding_sequence_variant&NMD_transcript_variant                                                       |     31 (<0.1%)     |
+|splice_acceptor_variant&frameshift_variant                                                                                   |     4 (<0.1%)      |
+|splice_acceptor_variant&intron_variant                                                                                       |    367 (<0.1%)     |
+|splice_acceptor_variant&intron_variant&NMD_transcript_variant                                                                |     55 (<0.1%)     |
+|splice_acceptor_variant&intron_variant&non_coding_transcript_variant                                                         |     86 (<0.1%)     |
+|splice_acceptor_variant&NMD_transcript_variant                                                                               |   1,110 (<0.1%)    |
+|splice_acceptor_variant&non_coding_transcript_exon_variant&intron_variant&non_coding_transcript_variant                      |    131 (<0.1%)     |
+|splice_acceptor_variant&non_coding_transcript_exon_variant&non_coding_transcript_variant                                     |     93 (<0.1%)     |
+|splice_acceptor_variant&non_coding_transcript_variant                                                                        |   1,752 (<0.1%)    |
+|splice_acceptor_variant&splice_donor_variant&coding_sequence_variant&intron_variant                                          |     10 (<0.1%)     |
+|splice_acceptor_variant&splice_donor_variant&inframe_deletion&intron_variant                                                 |     1 (<0.1%)      |
+|splice_acceptor_variant&splice_donor_variant&intron_variant                                                                  |     6 (<0.1%)      |
+|splice_acceptor_variant&splice_donor_variant&intron_variant&non_coding_transcript_variant                                    |     2 (<0.1%)      |
+|splice_acceptor_variant&splice_donor_variant&non_coding_transcript_exon_variant&intron_variant&non_coding_transcript_variant |     5 (<0.1%)      |
+|splice_acceptor_variant&synonymous_variant                                                                                   |     1 (<0.1%)      |
+|splice_donor_variant                                                                                                         |   8,050 (<0.1%)    |
+|splice_donor_variant&3_prime_UTR_variant                                                                                     |     2 (<0.1%)      |
+|splice_donor_variant&3_prime_UTR_variant&intron_variant                                                                      |     15 (<0.1%)     |
+|splice_donor_variant&3_prime_UTR_variant&intron_variant&NMD_transcript_variant                                               |     31 (<0.1%)     |
+|splice_donor_variant&3_prime_UTR_variant&NMD_transcript_variant                                                              |     16 (<0.1%)     |
+|splice_donor_variant&5_prime_UTR_variant                                                                                     |     6 (<0.1%)      |
+|splice_donor_variant&5_prime_UTR_variant&intron_variant                                                                      |     9 (<0.1%)      |
+|splice_donor_variant&5_prime_UTR_variant&intron_variant&NMD_transcript_variant                                               |     2 (<0.1%)      |
+|splice_donor_variant&coding_sequence_variant                                                                                 |    212 (<0.1%)     |
+|splice_donor_variant&coding_sequence_variant&3_prime_UTR_variant                                                             |     2 (<0.1%)      |
+|splice_donor_variant&coding_sequence_variant&3_prime_UTR_variant&intron_variant                                              |     2 (<0.1%)      |
+|splice_donor_variant&coding_sequence_variant&3_prime_UTR_variant&intron_variant&NMD_transcript_variant                       |     2 (<0.1%)      |
+|splice_donor_variant&coding_sequence_variant&5_prime_UTR_variant                                                             |     3 (<0.1%)      |
+|splice_donor_variant&coding_sequence_variant&5_prime_UTR_variant&intron_variant                                              |     3 (<0.1%)      |
+|splice_donor_variant&coding_sequence_variant&intron_variant                                                                  |    451 (<0.1%)     |
+|splice_donor_variant&coding_sequence_variant&intron_variant&NMD_transcript_variant                                           |     31 (<0.1%)     |
+|splice_donor_variant&coding_sequence_variant&NMD_transcript_variant                                                          |     20 (<0.1%)     |
+|splice_donor_variant&frameshift_variant                                                                                      |     3 (<0.1%)      |
+|splice_donor_variant&intron_variant                                                                                          |    400 (<0.1%)     |
+|splice_donor_variant&intron_variant&NMD_transcript_variant                                                                   |     68 (<0.1%)     |
+|splice_donor_variant&intron_variant&non_coding_transcript_variant                                                            |    109 (<0.1%)     |
+|splice_donor_variant&NMD_transcript_variant                                                                                  |   1,421 (<0.1%)    |
+|splice_donor_variant&non_coding_transcript_exon_variant&intron_variant&non_coding_transcript_variant                         |    154 (<0.1%)     |
+|splice_donor_variant&non_coding_transcript_exon_variant&non_coding_transcript_variant                                        |     57 (<0.1%)     |
+|splice_donor_variant&non_coding_transcript_variant                                                                           |   2,434 (<0.1%)    |
+|splice_donor_variant&splice_acceptor_variant&3_prime_UTR_variant&intron_variant&NMD_transcript_variant                       |     1 (<0.1%)      |
+|splice_donor_variant&splice_acceptor_variant&coding_sequence_variant&intron_variant                                          |     3 (<0.1%)      |
+|splice_donor_variant&splice_acceptor_variant&frameshift_variant&intron_variant                                               |     2 (<0.1%)      |
+|splice_donor_variant&splice_acceptor_variant&inframe_deletion&intron_variant                                                 |     3 (<0.1%)      |
+|splice_donor_variant&splice_acceptor_variant&intron_variant                                                                  |     3 (<0.1%)      |
+|splice_donor_variant&splice_acceptor_variant&non_coding_transcript_exon_variant&intron_variant&non_coding_transcript_variant |     1 (<0.1%)      |
+|splice_region_variant&3_prime_UTR_variant                                                                                    |    634 (<0.1%)     |
+|splice_region_variant&3_prime_UTR_variant&NMD_transcript_variant                                                             |   5,430 (<0.1%)    |
+|splice_region_variant&5_prime_UTR_variant                                                                                    |   3,395 (<0.1%)    |
+|splice_region_variant&5_prime_UTR_variant&NMD_transcript_variant                                                             |    177 (<0.1%)     |
+|splice_region_variant&coding_sequence_variant&5_prime_UTR_variant                                                            |     2 (<0.1%)      |
+|splice_region_variant&incomplete_terminal_codon_variant&coding_sequence_variant                                              |     3 (<0.1%)      |
+|splice_region_variant&intron_variant                                                                                         |   188,765 (1.6%)   |
+|splice_region_variant&intron_variant&NMD_transcript_variant                                                                  |   28,145 (0.2%)    |
+|splice_region_variant&intron_variant&non_coding_transcript_variant                                                           |   49,130 (0.4%)    |
+|splice_region_variant&non_coding_transcript_exon_variant&non_coding_transcript_variant                                       |   18,152 (0.2%)    |
+|splice_region_variant&non_coding_transcript_variant                                                                          |    164 (<0.1%)     |
+|splice_region_variant&stop_retained_variant                                                                                  |     4 (<0.1%)      |
+|splice_region_variant&stop_retained_variant&NMD_transcript_variant                                                           |     4 (<0.1%)      |
+|splice_region_variant&synonymous_variant                                                                                     |   25,010 (0.2%)    |
+|splice_region_variant&synonymous_variant&NMD_transcript_variant                                                              |   1,551 (<0.1%)    |
+|start_lost                                                                                                                   |   2,527 (<0.1%)    |
+|start_lost&inframe_deletion                                                                                                  |     15 (<0.1%)     |
+|start_lost&inframe_deletion&NMD_transcript_variant                                                                           |     11 (<0.1%)     |
+|start_lost&NMD_transcript_variant                                                                                            |    326 (<0.1%)     |
+|start_lost&splice_region_variant                                                                                             |     69 (<0.1%)     |
+|start_lost&splice_region_variant&NMD_transcript_variant                                                                      |     7 (<0.1%)      |
+|stop_gained                                                                                                                  |   19,602 (0.2%)    |
+|stop_gained&frameshift_variant                                                                                               |    429 (<0.1%)     |
+|stop_gained&frameshift_variant&NMD_transcript_variant                                                                        |     35 (<0.1%)     |
+|stop_gained&frameshift_variant&splice_region_variant                                                                         |     60 (<0.1%)     |
+|stop_gained&frameshift_variant&splice_region_variant&NMD_transcript_variant                                                  |     3 (<0.1%)      |
+|stop_gained&inframe_deletion                                                                                                 |     8 (<0.1%)      |
+|stop_gained&inframe_deletion&splice_region_variant                                                                           |     1 (<0.1%)      |
+|stop_gained&inframe_insertion                                                                                                |     69 (<0.1%)     |
+|stop_gained&inframe_insertion&NMD_transcript_variant                                                                         |     2 (<0.1%)      |
+|stop_gained&inframe_insertion&splice_region_variant                                                                          |     8 (<0.1%)      |
+|stop_gained&inframe_insertion&splice_region_variant&NMD_transcript_variant                                                   |     1 (<0.1%)      |
+|stop_gained&NMD_transcript_variant                                                                                           |   1,863 (<0.1%)    |
+|stop_gained&protein_altering_variant                                                                                         |     19 (<0.1%)     |
+|stop_gained&protein_altering_variant&splice_region_variant                                                                   |     5 (<0.1%)      |
+|stop_gained&splice_region_variant                                                                                            |    545 (<0.1%)     |
+|stop_gained&splice_region_variant&NMD_transcript_variant                                                                     |     63 (<0.1%)     |
+|stop_lost                                                                                                                    |   1,076 (<0.1%)    |
+|stop_lost&inframe_deletion                                                                                                   |     5 (<0.1%)      |
+|stop_lost&inframe_deletion&NMD_transcript_variant                                                                            |     2 (<0.1%)      |
+|stop_lost&inframe_deletion&splice_region_variant                                                                             |     7 (<0.1%)      |
+|stop_lost&NMD_transcript_variant                                                                                             |    260 (<0.1%)     |
+|stop_lost&splice_region_variant                                                                                              |     8 (<0.1%)      |
+|stop_lost&splice_region_variant&NMD_transcript_variant                                                                       |     18 (<0.1%)     |
+|stop_retained_variant                                                                                                        |    709 (<0.1%)     |
+|stop_retained_variant&NMD_transcript_variant                                                                                 |    120 (<0.1%)     |
+|synonymous_variant                                                                                                           |   933,604 (7.8%)   |
+|synonymous_variant&NMD_transcript_variant                                                                                    |   51,541 (0.4%)    |
+|TF_binding_site_variant                                                                                                      |   15,611 (0.1%)    |
+|TF_binding_site_variant&TFBS_ablation                                                                                        |    112 (<0.1%)     |
+|TFBS_ablation&TF_binding_site_variant                                                                                        |    115 (<0.1%)     |
+|upstream_gene_variant                                                                                                        |  1,576,970 (13%)   |
+
+
+|**Mutation Consequence for Cosmic Patients/Cell Line**                                 | **N = 988,048** |
+|:--------------------------------------------------------------------------------------|:---------------:|
+|__Consequence__                                                                        |                 |
+|3_prime_UTR_variant                                                                    |  10,918 (1.1%)  |
+|3_prime_UTR_variant&NMD_transcript_variant                                             |  22,747 (2.3%)  |
+|5_prime_UTR_variant                                                                    |  10,115 (1.0%)  |
+|5_prime_UTR_variant&NMD_transcript_variant                                             |   716 (<0.1%)   |
+|coding_sequence_variant                                                                |   16 (<0.1%)    |
+|coding_sequence_variant&NMD_transcript_variant                                         |    8 (<0.1%)    |
+|downstream_gene_variant                                                                |  175,178 (18%)  |
+|incomplete_terminal_codon_variant&coding_sequence_variant                              |   42 (<0.1%)    |
+|intergenic_variant                                                                     |    8 (<0.1%)    |
+|intron_variant                                                                         |  115,260 (12%)  |
+|intron_variant&NMD_transcript_variant                                                  |  17,909 (1.8%)  |
+|intron_variant&non_coding_transcript_variant                                           |  48,186 (4.9%)  |
+|mature_miRNA_variant                                                                   |   27 (<0.1%)    |
+|missense_variant                                                                       |  190,694 (19%)  |
+|missense_variant&NMD_transcript_variant                                                |  14,115 (1.4%)  |
+|missense_variant&splice_region_variant                                                 |  4,286 (0.4%)   |
+|missense_variant&splice_region_variant&NMD_transcript_variant                          |   286 (<0.1%)   |
+|non_coding_transcript_exon_variant&non_coding_transcript_variant                       |  80,736 (8.2%)  |
+|regulatory_region_variant                                                              |  29,654 (3.0%)  |
+|splice_acceptor_variant                                                                |   327 (<0.1%)   |
+|splice_acceptor_variant&NMD_transcript_variant                                         |   50 (<0.1%)    |
+|splice_acceptor_variant&non_coding_transcript_variant                                  |   69 (<0.1%)    |
+|splice_donor_variant                                                                   |   729 (<0.1%)   |
+|splice_donor_variant&NMD_transcript_variant                                            |   138 (<0.1%)   |
+|splice_donor_variant&non_coding_transcript_variant                                     |   167 (<0.1%)   |
+|splice_region_variant&3_prime_UTR_variant                                              |   51 (<0.1%)    |
+|splice_region_variant&3_prime_UTR_variant&NMD_transcript_variant                       |   566 (<0.1%)   |
+|splice_region_variant&5_prime_UTR_variant                                              |   294 (<0.1%)   |
+|splice_region_variant&5_prime_UTR_variant&NMD_transcript_variant                       |   12 (<0.1%)    |
+|splice_region_variant&intron_variant                                                   |  7,469 (0.8%)   |
+|splice_region_variant&intron_variant&NMD_transcript_variant                            |  1,019 (0.1%)   |
+|splice_region_variant&intron_variant&non_coding_transcript_variant                     |  1,770 (0.2%)   |
+|splice_region_variant&non_coding_transcript_exon_variant&non_coding_transcript_variant |  1,806 (0.2%)   |
+|splice_region_variant&synonymous_variant                                               |  2,943 (0.3%)   |
+|splice_region_variant&synonymous_variant&NMD_transcript_variant                        |   179 (<0.1%)   |
+|start_lost                                                                             |   122 (<0.1%)   |
+|start_lost&NMD_transcript_variant                                                      |   19 (<0.1%)    |
+|start_lost&splice_region_variant                                                       |    6 (<0.1%)    |
+|start_lost&splice_region_variant&NMD_transcript_variant                                |    1 (<0.1%)    |
+|stop_gained                                                                            |  2,951 (0.3%)   |
+|stop_gained&NMD_transcript_variant                                                     |   265 (<0.1%)   |
+|stop_gained&splice_region_variant                                                      |   77 (<0.1%)    |
+|stop_gained&splice_region_variant&NMD_transcript_variant                               |    7 (<0.1%)    |
+|stop_lost                                                                              |   104 (<0.1%)   |
+|stop_lost&NMD_transcript_variant                                                       |   13 (<0.1%)    |
+|stop_lost&splice_region_variant                                                        |    1 (<0.1%)    |
+|stop_lost&splice_region_variant&NMD_transcript_variant                                 |    3 (<0.1%)    |
+|stop_retained_variant                                                                  |   51 (<0.1%)    |
+|stop_retained_variant&NMD_transcript_variant                                           |   12 (<0.1%)    |
+|synonymous_variant                                                                     |  121,768 (12%)  |
+|synonymous_variant&NMD_transcript_variant                                              |  6,928 (0.7%)   |
+|TF_binding_site_variant                                                                |   892 (<0.1%)   |
+|upstream_gene_variant                                                                  |  116,338 (12%)  |
+
+
 
 ```{r recreate age bin}
 gnomad_decoded <- gnomad %>%
@@ -1071,75 +1306,18 @@ https://www.gencodegenes.org/pages/data_format.html
 ```{r}
 gencode <-
   read.delim(#"~/Downloads/gencode.v42.annotation.gtf.gz", 
-             paste0(path, "/gnomAD_skweness/data/gencode.v42.annotation.gtf.gz"),
-             comment.char="#",
-              # sep = " "
-             col.names = c("chromosome", "annotation source", "feature type",
-                           "genomic start location", "genomic end location", 
-                           "score(not used)", "genomic strand", "genomic phase (for CDS features)",
-                           "additional information as key-value pairs")
-              ) %>% 
-  janitor::clean_names()
-
-a <- gencode %>% 
-  slice(2100000 : 2105000) %>% head()
-
-a %>% 
-  mutate(chrom = str_match(chromosome, "chr(.*)")[,2]) %>% 
-  mutate(gene_id = str_match(additional_information_as_key_value_pairs, 
-                             "gene_id (.*?);")[,2]) %>% 
-  mutate(transcript_id = str_match(additional_information_as_key_value_pairs, 
-                                   "transcript_id (.*?);")[,2]) %>% 
-  mutate(gene_type = str_match(additional_information_as_key_value_pairs, 
-                               "gene_type (.*?);")[,2]) %>% 
-  mutate(gene_name = str_match(additional_information_as_key_value_pairs, 
-                               "gene_name (.*?);")[,2]) %>% 
-  mutate(transcript_type = str_match(additional_information_as_key_value_pairs, 
-                                     "transcript_type (.*?);")[,2]) %>% 
-  mutate(transcript_name = str_match(additional_information_as_key_value_pairs, 
-                                     "transcript_name (.*?);")[,2]) %>% 
-  select(chrom, genomic_start_location, genomic_end_location, gene_id, 
-         gene_type, gene_name, transcript_type, transcript_name)
-
-DNMT3A_in_gencode <- gencode %>% 
-  mutate(gene_in_gencode = str_match(additional_information_as_key_value_pairs, 
-                                     "(DNMT3A)(.*?)$")[,2]) %>% 
-  filter(gene_in_gencode == "DNMT3A") %>% 
-  mutate(chrom = (str_match(chromosome, "chr(.*)")[,2])) %>% 
-  mutate(gene_id = str_match(additional_information_as_key_value_pairs, 
-                             "gene_id (.*?);")[,2]) %>% 
-  mutate(transcript_id = str_match(additional_information_as_key_value_pairs, 
-                                   "transcript_id (.*?);")[,2]) %>% 
-  mutate(gene_type = str_match(additional_information_as_key_value_pairs, 
-                               "gene_type (.*?);")[,2]) %>% 
-  mutate(gene_name = str_match(additional_information_as_key_value_pairs, 
-                               "gene_name (.*?);")[,2]) %>% 
-  mutate(transcript_type = str_match(additional_information_as_key_value_pairs, 
-                                     "transcript_type (.*?);")[,2]) %>% 
-  mutate(transcript_name = str_match(additional_information_as_key_value_pairs, 
-                                     "transcript_name (.*?);")[,2]) %>% 
-  select(chrom, genomic_start_location, genomic_end_location, gene_id, 
-         gene_type, gene_name, transcript_type, transcript_name)
-  
+             paste0(path, "/gnomAD_skweness/other_data/gencode_filtered.vcf.gz"),
+              sep = " ")
 ```
 
 ## Merging with DNMT3A in gnomAD
 ```{r}
-stat_measure %>% select(IDs, X.CHROM, POS, REF, ALT) %>% 
-  inner_join(., DNMT3A_in_gencode,
-             by = c("X.CHROM" = "chrom", "POS" = "genomic_start_location"))
-
-stat_measure %>% select(IDs, X.CHROM, POS, REF, ALT) %>% 
-  inner_join(., DNMT3A_in_gencode,
-             by = c("X.CHROM" = "chrom", "POS" = "genomic_end_location"))
+stat_measure %>% select(IDs, X.CHROM, POS, REF, ALT, gene_in_gnomad) %>% 
+  left_join(., gencode,
+             by = c("gene_in_gnomad" = "gene_name"))
 ```
 
-```{r}
-gnomad %>% select(IDs, X.CHROM, POS, REF, ALT) %>% 
-  mutate(X.CHROM = as.character(X.CHROM)) %>% 
-  inner_join(., DNMT3A_in_gencode,
-             by = c("X.CHROM" = "chrom", "POS" = "genomic_start_location"))
-```
+
 
 
 
