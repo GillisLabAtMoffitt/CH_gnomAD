@@ -59,15 +59,15 @@ theme_set(theme_classic())
 
 ```{r load}
 path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
-gnomad_pval <-
-  read.delim(paste0(path, "/gnomAD_raw_data/chr2_test/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
-              sep = " ")
-gnomad_pval <-
-  read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
-              sep = " ")
-# gnomad <-
+# gnomad_pval <-
+#   read.delim(paste0(path, "/gnomAD_raw_data/chr2_test/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
+#               sep = " ")
+# gnomad_pval <-
 #   read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
 #               sep = " ")
+gnomad <-
+  read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
+              sep = " ")
 
 ```
 
@@ -243,45 +243,18 @@ gnomad_decoded <- gnomad %>%
   # slice(1:50) %>% 
   # mutate(IDs = ifelse(IDs == "2-25234373-C-T", "2-25234373-C-T_R882H", IDs)) %>% 
 
-  mutate(age_hist_het_bin_freq = str_match(INFO, "age_hist_het_bin_freq=(.*?);")[,2]) %>%
   # "Count of age values falling below lowest histogram bin edge for heterozygous individuals">
-  mutate("<30_het" = as.numeric(str_match(INFO, "age_hist_het_n_smaller=(.*?);")[,2])) %>%
-  # "Count of age values falling above highest histogram bin edge for heterozygous individuals">
-  mutate(">80_het" = as.numeric(str_match(INFO, "age_hist_het_n_larger=(.*?);")[,2])) %>% 
+  mutate("<30" = as.numeric(str_match(INFO, "age_hist_het_n_smaller=(.*?);")[,2])) %>%
+  mutate(age_hist_het_bin_freq = str_match(INFO, "age_hist_het_bin_freq=(.*?);")[,2]) %>%
   separate(col = age_hist_het_bin_freq,
-           into = c("30-35_het","35-40_het","40-45_het","45-50_het",
-                    "50-55_het","55-60_het","60-65_het","65-70_het",
-                    "70-75_het","75-80_het"), 
-           sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>% 
-  mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>% 
-
-  # 2. Extract count per age bin for heterozygous ind--
-  mutate(age_hist_hom_bin_freq = str_match(INFO, "age_hist_hom_bin_freq=(.*?);")[,2]) %>%
-  # "Count of age values falling below lowest histogram bin edge for homozygous individuals">
-  mutate("<30_hom" = as.numeric(str_match(INFO, "age_hist_hom_n_smaller=(.*?);")[,2])) %>%
-  # "Count of age values falling above highest histogram bin edge for homozygous individuals">
-  mutate(">80_hom" = as.numeric(str_match(INFO, "age_hist_hom_n_larger=(.*?);")[,2])) %>% 
-  separate(col = age_hist_hom_bin_freq,
-           into = c("30-35_hom","35-40_hom","40-45_hom","45-50_hom",
-                    "50-55_hom","55-60_hom","60-65_hom","65-70_hom",
-                    "70-75_hom","75-80_hom"), 
-           sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>% 
+           into = c("30-35","35-40","40-45","45-50",
+                    "50-55","55-60","60-65","65-70",
+                    "70-75","75-80"),
+           sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>%
+    # "Count of age values falling above highest histogram bin edge for heterozygous individuals">
+  mutate(">80" = as.numeric(str_match(INFO, "age_hist_het_n_larger=(.*?);")[,2])) %>%
   mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>% 
   
-  # 3. Combine count for Het and hom individuals
-  mutate("<30" = rowSums(select(.,`30-35_het`,`30-35_hom`), na.rm = TRUE),
-         "30-35" = rowSums(select(.,`30-35_het`,`30-35_hom`), na.rm = TRUE),
-         "35-40" = rowSums(select(.,`35-40_het`,`35-40_hom`), na.rm = TRUE),
-         "40-45" = rowSums(select(.,`40-45_het`,`40-45_hom`), na.rm = TRUE),
-         "45-50" = rowSums(select(.,`45-50_het`,`45-50_hom`), na.rm = TRUE),
-         "50-55" = rowSums(select(.,`50-55_het`,`50-55_hom`), na.rm = TRUE),
-         "55-60" = rowSums(select(.,`55-60_het`,`55-60_hom`), na.rm = TRUE),
-         "60-65" = rowSums(select(.,`60-65_het`,`60-65_hom`), na.rm = TRUE),
-         "65-70" = rowSums(select(.,`65-70_het`,`65-70_hom`), na.rm = TRUE),
-         "70-75" = rowSums(select(.,`70-75_het`,`70-75_hom`), na.rm = TRUE),
-         "75-80" = rowSums(select(.,`75-80_het`,`75-80_hom`), na.rm = TRUE),
-         ">80" = rowSums(select(.,`>80_het`,`>80_hom`), na.rm = TRUE)
-         ) %>%
   add_row("IDs"="All individuals", "ID"="All individuals of any genotype bin",
           "<30" = 2547, "30-35" = 3423,
           "35-40" = 4546,"40-45" = 8487,
@@ -291,8 +264,37 @@ gnomad_decoded <- gnomad %>%
           "75-80" = 4136,
           ">80" = 1935) %>%
   mutate(nbr_individuals = rowSums(select(.,`<30`:`>80`), na.rm = TRUE)) %>%
-  
-  select(-c(ends_with("_het"), ends_with("_hom"), bin_age)) %>% 
+
+  # 2. Extract count per age bin for heterozygous ind--
+  # "Count of age values falling below lowest histogram bin edge for homozygous individuals">
+  mutate("<30_hom" = as.numeric(str_match(INFO, "age_hist_hom_n_smaller=(.*?);")[,2])) %>%
+  mutate(age_hist_hom_bin_freq = str_match(INFO, "age_hist_hom_bin_freq=(.*?);")[,2]) %>%
+  separate(col = age_hist_hom_bin_freq,
+           into = c("30-35_hom","35-40_hom","40-45_hom","45-50_hom",
+                    "50-55_hom","55-60_hom","60-65_hom","65-70_hom",
+                    "70-75_hom","75-80_hom"), 
+           sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>% 
+  # "Count of age values falling above highest histogram bin edge for homozygous individuals">
+  mutate(">80_hom" = as.numeric(str_match(INFO, "age_hist_hom_n_larger=(.*?);")[,2])) %>% 
+  mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>% 
+  mutate(nbr_hom_individuals = rowSums(select(.,`<30_hom`:`>80_hom`), na.rm = TRUE)) %>%
+
+  # 3. Combine count for Het and hom individuals
+  # mutate("<30" = rowSums(select(.,`30-35_het`,`30-35_hom`), na.rm = TRUE),
+  #        "30-35" = rowSums(select(.,`30-35_het`,`30-35_hom`), na.rm = TRUE),
+  #        "35-40" = rowSums(select(.,`35-40_het`,`35-40_hom`), na.rm = TRUE),
+  #        "40-45" = rowSums(select(.,`40-45_het`,`40-45_hom`), na.rm = TRUE),
+  #        "45-50" = rowSums(select(.,`45-50_het`,`45-50_hom`), na.rm = TRUE),
+  #        "50-55" = rowSums(select(.,`50-55_het`,`50-55_hom`), na.rm = TRUE),
+  #        "55-60" = rowSums(select(.,`55-60_het`,`55-60_hom`), na.rm = TRUE),
+  #        "60-65" = rowSums(select(.,`60-65_het`,`60-65_hom`), na.rm = TRUE),
+  #        "65-70" = rowSums(select(.,`65-70_het`,`65-70_hom`), na.rm = TRUE),
+  #        "70-75" = rowSums(select(.,`70-75_het`,`70-75_hom`), na.rm = TRUE),
+  #        "75-80" = rowSums(select(.,`75-80_het`,`75-80_hom`), na.rm = TRUE),
+  #        ">80" = rowSums(select(.,`>80_het`,`>80_hom`), na.rm = TRUE)
+  #        ) %>%
+
+  select(-c(ends_with("_hom"), bin_age)) %>% 
   
   select(IDs, everything())
 ```
