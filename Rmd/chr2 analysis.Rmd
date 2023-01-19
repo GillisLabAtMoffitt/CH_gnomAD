@@ -1,5 +1,5 @@
 ---
-title: "Inverstigate chr2 pval"
+title: "chr2 Analysis"
 author: "Christelle Colin-Leitzinger"
 date: "`r Sys.Date()`"
 output:
@@ -59,14 +59,9 @@ theme_set(theme_classic())
 
 ```{r load}
 path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
-# gnomad_pval <-
-#   read.delim(paste0(path, "/gnomAD_raw_data/chr2_test/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
-#               sep = " ")
-# gnomad_pval <-
-#   read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
-#               sep = " ")
+
 gnomad <-
-  read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
+  read.delim(paste0(path, "/gnomAD_skweness/potential_CH_variants/chr2_CH_variants.vcf.gz"),
               sep = " ")
 
 ```
@@ -206,99 +201,99 @@ gnomad %>%
 ```
 
 ```{r plot1}
-# All <- gnomad %>% 
-#   filter(IDs == "All individuals"
-#   ) %>% 
-#   # mutate(IDs = "Reference") %>% 
-#   select(distribution_mean_ref = distribution_mean)
-# 
-# data_plot <- gnomad %>%
-#   # filter(IDs == i
-#   # ) %>% 
-#   select("IDs", distribution_mean, adjusted_pval) %>% 
-#   bind_cols(., All) %>% 
-#   mutate(effect = distribution_mean - distribution_mean_ref) # need to keep sup values
+All <- gnomad %>%
+  filter(IDs == "All individuals"
+  ) %>%
+  # mutate(IDs = "Reference") %>%
+  select(distribution_mean_ref = distribution_mean)
 
-# data_plot %>% 
-#   slice(1:20) %>% 
-#   ggplot(aes(x = IDs, y= effect, color= effect > 0
-#              #, color= IDs == "All individuals"
-#   ))+
-#   geom_point()+
-#   geom_hline(yintercept = 0)+
-#   coord_flip()
+data_plot <- gnomad %>%
+  # filter(IDs == i
+  # ) %>%
+  select("IDs", distribution_mean, adjusted_pval) %>%
+  bind_cols(., All) %>%
+  mutate(effect = distribution_mean - distribution_mean_ref) # need to keep sup values
+
+data_plot %>%
+  slice(1:20) %>%
+  ggplot(aes(x = IDs, y= effect, color= effect > 0
+             #, color= IDs == "All individuals"
+  ))+
+  geom_point()+
+  geom_hline(yintercept = 0)+
+  coord_flip()
 ```
 
-<!-- On all the variants -->
+On all the variants
 ```{r plot3}
 library(ggforce)
-# data_plot %>% 
-#   ggplot(aes(x= effect, y= adjusted_pval))+
-#   geom_point(color= "grey")+
-#   geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
-#              aes(x= effect, y=adjusted_pval), color= "red")+
-#   geom_point(data= data_plot %>% 
-#                filter(str_detect(IDs, bhadjusted_selected)),
-#              aes(x= effect, y=adjusted_pval), color= "yellow")+
-#   geom_point(data= data_plot %>% 
-#                filter(str_detect(IDs, effsize_selected)),
-#              aes(x= effect, y=adjusted_pval), color= "orange")+
-#   scale_y_log10()+
-#   labs(y= "BH pval (log10)")+
-#   theme(legend.position = "none")
-# 
-# data_plot %>% 
-#   ggplot(aes(x= effect, y= adjusted_pval))+
-#   geom_point(color= "grey")+
-#   geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
-#              aes(x= effect, y=adjusted_pval), color= "red")+
-#   geom_point(data= data_plot %>% 
-#                filter(str_detect(IDs, bhadjusted_selected)),
-#              aes(x= effect, y=adjusted_pval), color= "yellow")+
-#   geom_point(data= data_plot %>% 
-#                filter(str_detect(IDs, effsize_selected)),
-#              aes(x= effect, y=adjusted_pval), color= "orange")+
-#   scale_y_continuous(trans = trans_reverser('log10'))+
-#   # scale_y_continuous(trans = "log2")+
-#   labs(y= "BH pval (log10)")+
-#   theme(legend.position = "none")
+data_plot %>%
+  ggplot(aes(x= effect, y= adjusted_pval))+
+  geom_point(color= "grey")+
+  geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
+             aes(x= effect, y=adjusted_pval), color= "red")+
+  geom_point(data= data_plot %>%
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= effect, y=adjusted_pval), color= "yellow")+
+  geom_point(data= data_plot %>%
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= effect, y=adjusted_pval), color= "orange")+
+  scale_y_log10()+
+  labs(y= "BH pval (log10)")+
+  theme(legend.position = "none")
+
+data_plot %>%
+  ggplot(aes(x= effect, y= adjusted_pval))+
+  geom_point(color= "grey")+
+  geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
+             aes(x= effect, y=adjusted_pval), color= "red")+
+  geom_point(data= data_plot %>%
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= effect, y=adjusted_pval), color= "yellow")+
+  geom_point(data= data_plot %>%
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= effect, y=adjusted_pval), color= "orange")+
+  scale_y_continuous(trans = trans_reverser('log10'))+
+  # scale_y_continuous(trans = "log2")+
+  labs(y= "BH pval (log10)")+
+  theme(legend.position = "none")
 ```
 
-<!-- On BH < 0.05 -->
+On BH < 0.05
 ```{r plot4}
 library(ggforce)
-# data_plot %>% 
-#   filter(adjusted_pval < 0.05) %>% 
-#   ggplot(aes(x= effect, y= adjusted_pval))+
-#   geom_point(color= "grey")+
-#   geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
-#              aes(x= effect, y=adjusted_pval), color= "red")+
-#   geom_point(data= data_plot %>% 
-#                filter(str_detect(IDs, bhadjusted_selected)),
-#              aes(x= effect, y=adjusted_pval), color= "yellow")+
-#   geom_point(data= data_plot %>% 
-#                filter(str_detect(IDs, effsize_selected)),
-#              aes(x= effect, y=adjusted_pval), color= "orange")+
-#   scale_y_log10()+
-#   labs(y= "BH pval (log10)")+
-#   theme(legend.position = "none")
-# 
-# data_plot %>% 
-#   filter(adjusted_pval < 0.05) %>% 
-#   ggplot(aes(x= effect, y= adjusted_pval))+
-#   geom_point(color= "grey")+
-#   geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
-#              aes(x= effect, y=adjusted_pval), color= "red")+
-#   geom_point(data= data_plot %>% 
-#                filter(str_detect(IDs, bhadjusted_selected)),
-#              aes(x= effect, y=adjusted_pval), color= "yellow")+
-#   geom_point(data= data_plot %>% 
-#                filter(str_detect(IDs, effsize_selected)),
-#              aes(x= effect, y=adjusted_pval), color= "orange")+
-#   scale_y_continuous(trans = 'log2')+
-#   # scale_y_continuous(trans = "log2")+
-#   labs(y= "BH pval (log2)")+
-#   theme(legend.position = "none")
+data_plot %>%
+  filter(adjusted_pval < 0.05) %>%
+  ggplot(aes(x= effect, y= adjusted_pval))+
+  geom_point(color= "grey")+
+  geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
+             aes(x= effect, y=adjusted_pval), color= "red")+
+  geom_point(data= data_plot %>%
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= effect, y=adjusted_pval), color= "yellow")+
+  geom_point(data= data_plot %>%
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= effect, y=adjusted_pval), color= "orange")+
+  scale_y_log10()+
+  labs(y= "BH pval (log10)")+
+  theme(legend.position = "none")
+
+data_plot %>%
+  filter(adjusted_pval < 0.05) %>%
+  ggplot(aes(x= effect, y= adjusted_pval))+
+  geom_point(color= "grey")+
+  geom_point(data= data_plot %>% filter(IDs=="2-25234373-C-T"),
+             aes(x= effect, y=adjusted_pval), color= "red")+
+  geom_point(data= data_plot %>%
+               filter(str_detect(IDs, bhadjusted_selected)),
+             aes(x= effect, y=adjusted_pval), color= "yellow")+
+  geom_point(data= data_plot %>%
+               filter(str_detect(IDs, effsize_selected)),
+             aes(x= effect, y=adjusted_pval), color= "orange")+
+  scale_y_continuous(trans = 'log2')+
+  # scale_y_continuous(trans = "log2")+
+  labs(y= "BH pval (log2)")+
+  theme(legend.position = "none")
 ```
 
 |**Mutation Consequence in gnomAD**                                                                                           | **N = 12,003,450** |
