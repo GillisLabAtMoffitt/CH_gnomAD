@@ -10,7 +10,18 @@ select_join <- function(gnomad, cosmic){
   selected_variants <- inner_join(gnomad, 
                                 cosmic, 
                                 by = c("IDs", "X.CHROM", "POS", "REF", "ALT"
-                                ))
+                                )) %>% 
+    mutate(variant_in_cosmic = case_when(
+      is.na(variant_in_cosmic)     ~ "No",
+      TRUE                         ~ variant_in_cosmic
+    )) %>% 
+    left_join(., gencode %>% 
+                rename(gencode_gene_type = gene_type), 
+              by = c("IDs" = "gene_name")) %>% 
+    mutate(is_gencode_protein_coding_gene = case_when(
+      is.na(gencode_gene_type)     ~ "No",
+      !is.na(gencode_gene_type)    ~ "Yes"
+    ))
   
   # Extract allele info
   CH_variants <- selected_variants %>%
