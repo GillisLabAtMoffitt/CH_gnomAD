@@ -38,7 +38,7 @@ table(gencode$transcript_type)
 
 gencode1 <- gencode %>% 
   filter(gene_type == "protein_coding") %>% 
-  select(gene_name, gene_type) %>% 
+  dplyr::select(gene_name, gene_type) %>% 
   distinct()
 
 write_delim(gencode1, paste0(path, "/gnomAD_skweness/other_data/gencode_filtered.vcf.gz"))
@@ -52,14 +52,19 @@ txdb <- makeTxDbFromGFF(gtf)
 write_rds(txdb, "txdb.rds")
 y= exonsBy(txdb, "gene")
 Z = sapply(y, function(y) sum(width(reduce(y))))
-z <- Z %>% as_tibble(rownames = "gene_id")
+exon_size_df <- Z %>% as_tibble(rownames = "gene_id")
+write_rds(exon_size_df, "exon_size_df.rds")
+exon_size_df <- readRDS("~/Documents/GitHub/Gillis/CH_gnomAD/exon_size_df.rds")
 
 exon_effective_length <- gencode %>% 
   filter(gene_type == "protein_coding") %>% 
   full_join(., 
-            z, 
+            exon_size_df, 
             by = "gene_id") %>% 
-  dplyr::select(gene_name, gene_type, exon_effective_length = value)
+  dplyr::select(gene_name, gene_type, exon_effective_length = value) %>% 
+  arrange(gene_name, desc(exon_effective_length)) %>% 
+  distinct(gene_name, .keep_all = TRUE) %>% 
+  filter(!is.na(gene_name))
 
 write_delim(exon_effective_length, paste0(path, "/gnomAD_skweness/other_data/gencode_filtered.vcf.gz"))
 
