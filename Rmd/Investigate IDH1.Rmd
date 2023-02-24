@@ -1,5 +1,5 @@
 ---
-title: "Inverstigate chr2 pval"
+title: "Inverstigate IDH1"
 author: "Christelle Colin-Leitzinger"
 date: "`r Sys.Date()`"
 output:
@@ -45,7 +45,7 @@ div.blue { background-color:#0099CC; border-radius: 5px; padding: 20px; font-siz
 </style>
 <div class = "blue">
 
-<span style="color: white;">GnomAD data</span>
+<span style="color: white;">IDH1</span>
 
 </div>
 <br>
@@ -128,7 +128,12 @@ IDH1_gnomad_cosmic <- inner_join(gnomad_decoded %>%
                                    ))
 ```
 
-From 130 IDH1 variants in GnomAD, 10 are present in Cosmic.
+From 130 IDH1 variants in GnomAD, 10 are present in Cosmic.  
+The common mutation is R132.  
+From Yi-Han : R132C,  R132G,  R132H,  R132L,  R132P,  R132V,  V178I NM_005896  
+2-208248388-C-T(GRCh38)  
+https://gnomad.broadinstitute.org/variant/2-209113112-C-T?dataset=gnomad_r2_1
+
 ```{r recreate age bin}
 gnomad_decoded <- IDH1_gnomad_cosmic %>%
   # filter(INFO == "Arg882His" | gene_in_gnomad == "DNMT3A") %>% 

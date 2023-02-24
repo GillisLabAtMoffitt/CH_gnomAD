@@ -60,24 +60,22 @@ theme_set(theme_classic())
 ```{r load}
 path <- fs::path("", "Volumes", "Lab_Gillis", "Christelle")
 # gnomad_pval <-
-#   read.delim(paste0(path, "/gnomAD_raw_data/chr2_test/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
-#               sep = " ")
-# gnomad_pval <-
 #   read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
 #               sep = " ")
 gnomad <-
-  read.delim(paste0(path, "/gnomAD_raw_data/splitted_data/age_comparison_pval/padjust_age_selected_variants/chr2_padjusted.vcf.gz"),
+  read.delim(paste0(here::here(), "/chr2_CH_variants.vcf.gz"), 
+             colClasses = c("ALT"="character"),
               sep = " ")
 
 ```
 
 ```{r}
-gnomad <- gnomad %>%
-  left_join(., gnomad_pval %>%
-              select(IDs, adjusted_pval),
-            by = "IDs")
-
-rm(gnomad_pval)
+# gnomad <- gnomad %>%
+#   left_join(., gnomad_pval %>%
+#               select(IDs, adjusted_pval),
+#             by = "IDs")
+# 
+# rm(gnomad_pval)
 ```
 
 # Mean and effect size
@@ -234,7 +232,7 @@ library(ggforce)
 
 ```{r recreate age bin}
 gnomad_decoded <- gnomad %>%
-  select(-age_bin, -sample_frequency, -sample_count, -nbr_individuals) %>% 
+  select(-sample_frequency, -sample_count, -nbr_individuals) %>% 
   mutate(gene_in_gnomad = str_match(INFO, "(DNMT3A)(.*?)$")[,2]) %>% 
   filter(IDs == "2-25457242-C-T" | IDs == "2-25234373-C-T" | gene_in_gnomad == "DNMT3A") %>%
   # filter(INFO == "Arg882His" | gene_in_gnomad == "DNMT3A") %>% 
@@ -294,14 +292,14 @@ gnomad_decoded <- gnomad %>%
   #        ">80" = rowSums(select(.,`>80_het`,`>80_hom`), na.rm = TRUE)
   #        ) %>%
 
-  select(-c(ends_with("_hom"), bin_age)) %>% 
+  select(-c(ends_with("_hom"))) %>% 
   
   select(IDs, everything())
 ```
 
 ```{r recreate age bin2}
 gnomad_decoded <- gnomad_decoded %>% 
-  pivot_longer(cols = c(grep("[[:digit:]]", colnames(.))), 
+  pivot_longer(cols = c(grep("^[[:digit:]]", colnames(.))), 
                names_to = "age_bin", values_to = "sample_count") %>% 
   mutate(age_bin = factor(age_bin, 
                           levels = c("<30", "30-35","35-40","40-45","45-50","50-55",
@@ -331,103 +329,106 @@ gnomad_decoded <- gnomad_decoded %>%
 <!-- <!-- Found in Cosmic data --> -->
 
 ```{r load cosmic}
-cosmic <-
-  read.delim(paste0(path, "/cosmic_raw_data/cosmic_DNMT3_data.vcf.gz"),
-             header = FALSE,
-             col.names = c("Gene.name", "Accession.Number", "Gene.CDS.length", "HGNC.ID", "Sample.name",
-                           "ID_sample", "ID_tumour", "Primary.site", "Site.subtype.1", "Site.subtype.2",
-                           "Site.subtype.3", "Primary.histology", "Histology.subtype.1", "Histology.subtype.2",
-                           "Histology.subtype.3", "Genome.wide.screen", "GENOMIC_MUTATION_ID",
-                           "LEGACY_MUTATION_ID", "MUTATION_ID", "Mutation.CDS", "Mutation.AA",
-                           "Mutation.Description", "Mutation.zygosity", "LOH", "GRCh",
-                           "Mutation.genome.position", "Mutation.strand", "Resistance.Mutation",
-                           "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status", "Pubmed_PMID",
-                           "ID_STUDY", "Sample.Type", "Tumour.origin", "Age", "HGVSP", "HGVSC", "HGVSG"))
+# cosmic <-
+#   read.delim(paste0(path, "/cosmic_raw_data/cosmic_DNMT3_data.vcf.gz"),
+#              header = FALSE,
+#              col.names = c("Gene.name", "Accession.Number", "Gene.CDS.length", "HGNC.ID", "Sample.name",
+#                            "ID_sample", "ID_tumour", "Primary.site", "Site.subtype.1", "Site.subtype.2",
+#                            "Site.subtype.3", "Primary.histology", "Histology.subtype.1", "Histology.subtype.2",
+#                            "Histology.subtype.3", "Genome.wide.screen", "GENOMIC_MUTATION_ID",
+#                            "LEGACY_MUTATION_ID", "MUTATION_ID", "Mutation.CDS", "Mutation.AA",
+#                            "Mutation.Description", "Mutation.zygosity", "LOH", "GRCh",
+#                            "Mutation.genome.position", "Mutation.strand", "Resistance.Mutation",
+#                            "FATHMM.prediction", "FATHMM.score", "Mutation.somatic.status", "Pubmed_PMID",
+#                            "ID_STUDY", "Sample.Type", "Tumour.origin", "Age", "HGVSP", "HGVSC", "HGVSG"))
 
 # cosmic <-
 #   read.delim(paste0(path, "/cosmic_raw_data/splitted_data/filter_cosmic_withIDs/chr2_cosmic.vcf.gz"),
 #               sep = " ")
 ```
 
-```{r}
-cosmic <-
-  cosmic %>%
-  mutate(modification = str_match(HGVSG, "(delins|ins|del|dup)(.*?)$")[,2],
-         aa_inserted = case_when(
-           modification %in% c("ins", "delins")   ~ str_match(HGVSG, "(delins|ins|del|dup)(.*?)$")[,3],
-           TRUE                                   ~ NA_character_
-         )) %>%
+<!-- ```{r} -->
+<!-- cosmic <- -->
+<!--   cosmic %>% -->
+<!--   mutate(modification = str_match(HGVSG, "(delins|ins|del|dup)(.*?)$")[,2], -->
+<!--          aa_inserted = case_when( -->
+<!--            modification %in% c("ins", "delins")   ~ str_match(HGVSG, "(delins|ins|del|dup)(.*?)$")[,3], -->
+<!--            TRUE                                   ~ NA_character_ -->
+<!--          )) %>% -->
 
-  separate(HGVSG, into = c("chr", "chr_arm", "POS", "ALT"), sep = ":|\\.|>|delins|dup|del", remove = FALSE) %>%
-  mutate(REF = str_match(POS, "([0-9]*)([A-Z]*)")[,3]) %>%
-  mutate(POS = str_match(POS, "([0-9]*)([A-Z]*)")[,2],
-         POS = as.numeric(POS)) %>%
-  # separate(Mutation.genome.position, into = c("chr", "start", "end"), sep = ":|-", remove = FALSE) %>%
-  unite(IDs, c(chr, POS, REF, ALT), sep = "-", remove = FALSE) %>% #select(IDs, everything())
-  # separate(HGVSG, into = c("ENSP", "p_prot_modif"), sep = ":", remove = FALSE) %>%
-  mutate(IDs = case_when(
-    IDs == "-NA-NA-NA"                 ~ NA_character_,
-    TRUE                               ~ IDs
-  )) %>%
-  separate(`Gene.name`, into = c("gene_name_cosmic"), sep = "_", remove = FALSE) %>%
-  # 1 tumor can have multiple sample
-  distinct(IDs, ID_tumour, .keep_all = TRUE) %>%
-  arrange(IDs) %>%
-  select(IDs, "Gene.name", gene_name_cosmic, Gene.name, "Accession.Number", "chr", "POS", REF, "ALT", HGVSG, everything())
-```
+<!--   separate(HGVSG, into = c("chr", "chr_arm", "POS", "ALT"), sep = ":|\\.|>|delins|dup|del", remove = FALSE) %>% -->
+<!--   mutate(REF = str_match(POS, "([0-9]*)([A-Z]*)")[,3]) %>% -->
+<!--   mutate(POS = str_match(POS, "([0-9]*)([A-Z]*)")[,2], -->
+<!--          POS = as.numeric(POS)) %>% -->
+<!--   # separate(Mutation.genome.position, into = c("chr", "start", "end"), sep = ":|-", remove = FALSE) %>% -->
+<!--   unite(IDs, c(chr, POS, REF, ALT), sep = "-", remove = FALSE) %>% #select(IDs, everything()) -->
+<!--   # separate(HGVSG, into = c("ENSP", "p_prot_modif"), sep = ":", remove = FALSE) %>% -->
+<!--   mutate(IDs = case_when( -->
+<!--     IDs == "-NA-NA-NA"                 ~ NA_character_, -->
+<!--     TRUE                               ~ IDs -->
+<!--   )) %>% -->
+<!--   separate(`Gene.name`, into = c("gene_name_cosmic"), sep = "_", remove = FALSE) %>% -->
+<!--   # 1 tumor can have multiple sample -->
+<!--   distinct(IDs, ID_tumour, .keep_all = TRUE) %>% -->
+<!--   arrange(IDs) %>% -->
+<!--   select(IDs, "Gene.name", gene_name_cosmic, Gene.name, "Accession.Number", "chr", "POS", REF, "ALT", HGVSG, everything()) -->
+<!-- ``` -->
 
-```{r}
-cosmic <- cosmic %>%
-  group_by(IDs, gene_name_cosmic, chr, POS, REF, ALT) %>%
-  mutate(occurrence_in_cosmic = n())
+<!-- ```{r} -->
+<!-- cosmic <- cosmic %>% -->
+<!--   group_by(IDs, gene_name_cosmic, chr, POS, REF, ALT) %>% -->
+<!--   mutate(occurrence_in_cosmic = n()) -->
 
-max_occurence = max(cosmic$occurrence_in_cosmic)
-cosmic <- cosmic %>% ###################################### Clean up here--------------------------------
+<!-- max_occurence = max(cosmic$occurrence_in_cosmic) -->
+<!-- cosmic <- cosmic %>% ###################################### Clean up here-------------------------------- -->
 
-  # distinct()
-  group_by(IDs, gene_name_cosmic, chr, POS, REF, ALT,
-           HGNC.ID,
-           HGVSP, ###################################### Clean up here--------------------------------
-           FATHMM.prediction, FATHMM.score,
+<!--   # distinct() -->
+<!--   group_by(IDs, gene_name_cosmic, chr, POS, REF, ALT, -->
+<!--            HGNC.ID, -->
+<!--            HGVSP, ###################################### Clean up here-------------------------------- -->
+<!--            FATHMM.prediction, FATHMM.score, -->
 
-           occurrence_in_cosmic) %>%
-  summarise_at(vars(Accession.Number, HGVSG,
-                    Gene.CDS.length,
-    Mutation.CDS,
-          Mutation.AA,
-          Primary.site,
-          Mutation.Description,
-    Mutation.genome.position,
-          Primary.histology,
-          Histology.subtype.1, Histology.subtype.2, Histology.subtype.3,
-          HGVSC,
-          Mutation.somatic.status, Pubmed_PMID,
-          Sample.Type, Tumour.origin, Age), str_c, collapse = "; ") %>%
-  ungroup() %>%
-  separate(Age, paste("Age", 1:max(max_occurence), sep = "_"),
-           sep = "; ", remove = TRUE,
-           extra = "warn", fill = "right") %>%
-  purrr::keep(~!all(is.na(.))) %>%
-  mutate(across(starts_with("Age_"), ~ as.numeric(.))) %>%
+<!--            occurrence_in_cosmic) %>% -->
+<!--   summarise_at(vars(Accession.Number, HGVSG, -->
+<!--                     Gene.CDS.length, -->
+<!--     Mutation.CDS, -->
+<!--           Mutation.AA, -->
+<!--           Primary.site, -->
+<!--           Mutation.Description, -->
+<!--     Mutation.genome.position, -->
+<!--           Primary.histology, -->
+<!--           Histology.subtype.1, Histology.subtype.2, Histology.subtype.3, -->
+<!--           HGVSC, -->
+<!--           Mutation.somatic.status, Pubmed_PMID, -->
+<!--           Sample.Type, Tumour.origin, Age), str_c, collapse = "; ") %>% -->
+<!--   ungroup() %>% -->
+<!--   separate(Age, paste("Age", 1:max(max_occurence), sep = "_"), -->
+<!--            sep = "; ", remove = TRUE, -->
+<!--            extra = "warn", fill = "right") %>% -->
+<!--   purrr::keep(~!all(is.na(.))) %>% -->
+<!--   mutate(across(starts_with("Age_"), ~ as.numeric(.))) %>% -->
 
-  mutate(average_age = rowMeans(select(., starts_with("Age")), na.rm = TRUE)) %>%
-  mutate(variant_in_cosmic = "Yes")
-```
+<!--   mutate(average_age = rowMeans(select(., starts_with("Age")), na.rm = TRUE)) %>% -->
+<!--   mutate(variant_in_cosmic = "Yes") -->
+<!-- ``` -->
 
 ```{r bind cosmic Ids}
-gnomad_decoded <- left_join(gnomad_decoded %>%
-                              mutate(X.CHROM = as.character(X.CHROM)),
-                            cosmic %>%
-                              mutate(chr = as.character(chr)),
-                            by = c("IDs", "X.CHROM" = "chr", "POS", "REF", "ALT"))
+# gnomad_decoded <- left_join(gnomad_decoded %>%
+#                               mutate(X.CHROM = as.character(X.CHROM)),
+#                             cosmic %>%
+#                               mutate(chr = as.character(chr)),
+#                             by = c("IDs", "X.CHROM" = "chr", "POS", "REF", "ALT"))
 ```
 
 # Plots all variants
 **R882H is curve #6 aka 2-25234373-C-T.**
+<div class = "row">
+<div class = "col-md-6">
+## Age 
 ```{r Plots all variants}
 # mann_w <-  data.frame(matrix(nrow=1, ncol=0)) 
-effect_size <-  data.frame(matrix(nrow=1, ncol=0)) 
-effect_size_cat <-  data.frame(matrix(nrow=1, ncol=0)) 
+# effect_size <-  data.frame(matrix(nrow=1, ncol=0)) 
+# effect_size_cat <-  data.frame(matrix(nrow=1, ncol=0)) 
 
 n <- 0
 
@@ -443,14 +444,7 @@ for(i in unique(gnomad_decoded$IDs)) {
     filter(IDs == i
     ) %>% 
     bind_rows(., All) %>% 
-    select(IDs, age_bin, sample_frequency,
-           bin_age, #distribution_mean,
-           nbr_individuals, mann_pval, adjusted_pval,
-           
-           HGVSP, occurrence_in_cosmic, 
-           Mutation.somatic.status,
-           variant_in_cosmic, #prot_change, 
-           adjusted_pval)
+    distinct(IDs, bin_age, .keep_all = TRUE)
   n <- n + 1
   p <- data_plot %>% 
     ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+
@@ -469,34 +463,35 @@ for(i in unique(gnomad_decoded$IDs)) {
              alpha = 0.1)+
     ylim(0, max(data_plot$sample_frequency))
   
-  p_ <- layer_data(p, 1) %>% 
-  mutate(colour =  as.factor(colour)) %>% 
-  mutate_if(is.numeric, ~replace(., is.na(.), 0))
-
-  variant <- p_ %>% filter(group == 1)
-  variant <- sample(variant$x, 180, prob = variant$y, replace = TRUE)
-  ref <- p_ %>% filter(group == 2)
-  ref <- sample(ref$x, 180, prob = ref$y, replace = TRUE)
+  # p_ <- layer_data(p, 1) %>% 
+  # mutate(colour =  as.factor(colour)) %>% 
+  # mutate_if(is.numeric, ~replace(., is.na(.), 0))
+  # 
+  # variant <- p_ %>% filter(group == 1)
+  # variant <- sample(variant$x, 180, prob = variant$y, replace = TRUE)
+  # ref <- p_ %>% filter(group == 2)
+  # ref <- sample(ref$x, 180, prob = ref$y, replace = TRUE)
   
   # result1 <- wilcox.test(variant, ref, alternative = "greater")$p.value
   # mann_w <- rbind(mann_w, result1)
   
-  result2 <- cohen.d(variant, ref, hedges.correction=TRUE)$estimate
-  effect_size <- rbind(effect_size, result2)
-  result3 <- cohen.d(variant, ref,hedges.correction=TRUE)$magnitude[1] %>% 
-    as_tibble() %>%
-    mutate(value = case_when(
-      value == "negligible"   ~ "negligible",
-      value == "small"        ~ "small",
-      value == "medium"       ~ "medium",
-      value == "large"        ~ "large"
-    ))
-  effect_size_cat <- rbind(effect_size_cat, result3)
+  # result2 <- cohen.d(variant, ref, hedges.correction=TRUE)$estimate
+  # effect_size <- rbind(effect_size, result2)
+  # result3 <- cohen.d(variant, ref,hedges.correction=TRUE)$magnitude[1] %>% 
+  #   as_tibble() %>%
+  #   mutate(value = case_when(
+  #     value == "negligible"   ~ "negligible",
+  #     value == "small"        ~ "small",
+  #     value == "medium"       ~ "medium",
+  #     value == "large"        ~ "large"
+  #   ))
+  # effect_size_cat <- rbind(effect_size_cat, result3)
   
   p <- p+
     # geom_vline(xintercept = data_plot$distribution_mean, color= "red")+
     geom_text(
-      data    = data_plot,
+      data    = data_plot %>% 
+               filter(IDs == i),
       mapping = aes(x = -Inf, y = -Inf, label = paste0("MannW= ", round(mann_pval, 3))),
       colour = "black",
       hjust   = 0,
@@ -511,21 +506,23 @@ for(i in unique(gnomad_decoded$IDs)) {
       vjust   = -11
     )+
     geom_text(
-      # data    = data_plot,
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(result2, 3))),
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(effect_size, 3))),
       hjust   = 0,
       vjust   = -17
     )+
     geom_text(
-      # data    = data_plot,
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", result3)),
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", effect_size_cat)),
       hjust   = 0,
       vjust   = -15
     )+
     geom_text(
       data    = data_plot %>% 
                filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_individuals= ", nbr_individuals)),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_individuals with age= ", nbr_individuals)),
       colour = "darkblue",
       hjust   = 0,
       vjust   = -min(data_plot$sample_frequency)
@@ -559,53 +556,176 @@ for(i in unique(gnomad_decoded$IDs)) {
 
 }
 ```
+</div>
 
+<div class = "col-md-6">
+## Allele balance
+```{r}
+gnomad <- gnomad_decoded %>%
+  filter(IDs != "All individuals") %>% 
+  select(-AB_count) %>% 
+  # 1. Extract count per AB bin for heterozygous ind--
+  # ab_hist_alt_bin_freq,Number=A,Type=String,Description="Histogram for AB in heterozygous individuals; 
+  # bin edges are: 0.00|0.05|0.10|0.15|0.20|0.25|0.30|0.35|0.40|0.45|0.50|0.55|0.60|0.65|0.70|0.75|0.80|0.85|0.90|0.95|1.00>
+  mutate(ab_hist_alt_bin_freq = str_match(INFO, "ab_hist_alt_bin_freq=(.*?);")[,2]) %>%
+  separate(col = ab_hist_alt_bin_freq,
+           into = c("0.00-0.05","0.05-0.10","0.10-0.15","0.15-0.20",
+                    "0.20-0.25","0.25-0.30","0.30-0.35","0.35-0.40",
+                    "0.40-0.45","0.45-0.50","0.50-0.55","0.55-0.60",
+                    "0.60-0.65","0.65-0.70","0.70-0.75","0.75-0.80",
+                    "0.80-0.85","0.85-0.90","0.90-0.95","0.95-1.00"),
+           sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>%
+  mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>%
+  add_row("IDs"="Reference", "ID"="ASXL1 20-32435697-C-T",
+          "0.00-0.05" = 0, "0.05-0.10"  = 0, "0.10-0.15" = 0, 
+          "0.15-0.20" = 1, "0.20-0.25" = 2, "0.25-0.30" = 6, 
+          "0.30-0.35" = 87, "0.35-0.40" = 274, "0.40-0.45" = 1220,
+          "0.45-0.50" = 2286, "0.50-0.55" = 1737, "0.55-0.60" = 506,
+          "0.60-0.65" = 112, "0.65-0.70" = 14, "0.70-0.75" = 4,
+          "0.75-0.80" = 0, "0.80-0.85" = 1, "0.85-0.90" = 0,
+          "0.90-0.95" = 0, "0.95-1.00" = 0) %>%
+  mutate(total_allele_balance = rowSums(select(.,`0.00-0.05`:`0.95-1.00`), na.rm = TRUE)) %>%
+  
+  select(IDs, everything())
+
+gnomad <- gnomad %>%
+  pivot_longer(cols = c(grep("^[[:digit:]]", colnames(.))),
+               names_to = "allele_bin", values_to = "AB_count") %>%
+  mutate(allele_bin = factor(allele_bin,
+                             levels = c("0.00-0.05","0.05-0.10","0.10-0.15","0.15-0.20",
+                                        "0.20-0.25","0.25-0.30","0.30-0.35","0.35-0.40",
+                                        "0.40-0.45","0.45-0.50","0.50-0.55","0.55-0.60",
+                                        "0.60-0.65","0.65-0.70","0.70-0.75","0.75-0.80",
+                                        "0.80-0.85","0.85-0.90","0.90-0.95","0.95-1.00"
+                             ))) %>%
+  mutate(AB_bin = case_when(
+    allele_bin == "0.00-0.05"            ~ 0.025,
+    allele_bin == "0.05-0.10"            ~ 0.075,
+    allele_bin == "0.10-0.15"            ~ 0.125,
+    allele_bin == "0.15-0.20"            ~ 0.175,
+    allele_bin == "0.20-0.25"            ~ 0.225,
+    allele_bin == "0.25-0.30"            ~ 0.275,
+    allele_bin == "0.30-0.35"            ~ 0.325,
+    allele_bin == "0.35-0.40"            ~ 0.375,
+    allele_bin == "0.40-0.45"            ~ 0.425,
+    allele_bin == "0.45-0.50"            ~ 0.475,
+    allele_bin == "0.50-0.55"            ~ 0.525,
+    allele_bin == "0.55-0.60"            ~ 0.575,
+    allele_bin == "0.60-0.65"            ~ 0.625,
+    allele_bin == "0.65-0.70"            ~ 0.675,
+    allele_bin == "0.70-0.75"            ~ 0.725,
+    allele_bin == "0.75-0.80"            ~ 0.775,
+    allele_bin == "0.80-0.85"            ~ 0.825,
+    allele_bin == "0.85-0.90"            ~ 0.875,
+    allele_bin == "0.90-0.95"            ~ 0.925,
+    allele_bin == "0.95-1.00"            ~ 0.975
+  )) %>%
+  mutate(AB_frequency = AB_count / total_allele_balance)
+
+
+## Step 1 : Limit variants with a skewed age distribution
+# allele_balance_pval <-  data.frame(matrix(nrow=length(unique(gnomad$IDs)), ncol=1,
+#                                 dimnames = list(c(unique(gnomad$IDs)),
+#                                                 c("value")) ))
+n <- 0
+set.seed(1234)
+for(i in unique(gnomad$IDs)) {
+  
+  All <- gnomad %>%
+    filter(IDs == "Reference"
+    ) %>% 
+    mutate(IDs = "Ref")
+  data_plot <- gnomad %>%
+    filter(IDs == i
+    ) %>%
+    bind_rows(., All) %>%
+    distinct(IDs, AB_bin, .keep_all = TRUE)
+  
+  n <- n + 1
+  p <- data_plot %>%
+    ggplot(aes(x = AB_bin, y= AB_frequency, color= IDs))+
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+                span = 0.6
+    )+
+    labs(title = n)+
+    geom_col(data = data_plot %>%
+               filter(IDs == i) ,
+             aes(x= AB_bin, y= AB_frequency),
+             position = "identity",
+             fill = "red",
+             alpha = 0.1)+
+    ylim(0, max(data_plot$AB_frequency))
+  
+  p <- p+
+    geom_text(
+      data    = data_plot %>% 
+        filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("p-AB= ", round(allele_balance_pval, 3))),
+      colour = "black",
+      hjust   = 0,
+      vjust   = -30
+    )+
+    geom_text(
+      data    = data_plot %>% 
+        filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("p-AB adjusted= ", round(adjusted_AB_pval, 3))),
+      colour = "red",
+      hjust   = 0,
+      vjust   = -28
+    )
+  
+  print(p)
+  
+}
+```
+</div>
+</div>
 
 ```{r}
 # mann_w <- mann_w %>% `colnames<-`(c("mann_w")) %>% 
 #   mutate(IDs = c(unique(gnomad_decoded$IDs)))
-effect_size <- effect_size %>% `colnames<-`(c("effect_size"))%>% 
-  mutate(IDs = c(unique(gnomad_decoded$IDs)))
-effect_size_cat <- effect_size_cat %>% `colnames<-`(c("effect_size_cat"))
-
-stat_measure <- bind_cols(effect_size, effect_size_cat) %>% 
-  left_join(gnomad_decoded, .,
-  by= "IDs")
+# effect_size <- effect_size %>% `colnames<-`(c("effect_size"))%>% 
+#   mutate(IDs = c(unique(gnomad_decoded$IDs)))
+# effect_size_cat <- effect_size_cat %>% `colnames<-`(c("effect_size_cat"))
+# 
+# stat_measure <- bind_cols(effect_size, effect_size_cat) %>% 
+#   left_join(gnomad_decoded, .,
+#   by= "IDs")
 
 # print(head(stat_measure))
 ```
 
 ```{r}
-stat_measure %>% 
+gnomad_decoded %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
   ggplot(aes(x= effect_size, y= adjusted_pval))+
   geom_point(color= "grey")+
-  geom_point(data= stat_measure %>% 
+  geom_point(data= gnomad_decoded %>% 
                distinct(IDs, .keep_all = TRUE) %>% 
                filter(IDs=="2-25234373-C-T"),
              aes(x= effect_size, y=adjusted_pval), color= "red")+
-  geom_point(data= stat_measure %>% 
+  geom_point(data= gnomad_decoded %>% 
                distinct(IDs, .keep_all = TRUE) %>% 
                filter(str_detect(IDs, bhadjusted_selected)),
              aes(x= effect_size, y=adjusted_pval), color= "yellow")+
-  geom_point(data= stat_measure %>% 
+  geom_point(data= gnomad_decoded %>% 
                distinct(IDs, .keep_all = TRUE) %>% 
                filter(str_detect(IDs, effsize_selected)),
              aes(x= effect_size, y=adjusted_pval), color= "orange")
 
-stat_measure %>% 
+gnomad_decoded %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
   ggplot(aes(x= effect_size, y= adjusted_pval))+
   geom_point(color= "grey")+
-  geom_point(data= stat_measure %>% 
+  geom_point(data= gnomad_decoded %>% 
                distinct(IDs, .keep_all = TRUE) %>% 
                filter(IDs=="2-25234373-C-T"),
              aes(x= effect_size, y=adjusted_pval), color= "red")+
-  geom_point(data= stat_measure %>% 
+  geom_point(data= gnomad_decoded %>% 
                distinct(IDs, .keep_all = TRUE) %>% 
                filter(str_detect(IDs, bhadjusted_selected)),
              aes(x= effect_size, y=adjusted_pval), color= "yellow")+
-  geom_point(data= stat_measure %>% 
+  geom_point(data= gnomad_decoded %>% 
                distinct(IDs, .keep_all = TRUE) %>% 
                filter(str_detect(IDs, effsize_selected)),
              aes(x= effect_size, y=adjusted_pval), color= "orange")+
@@ -613,19 +733,19 @@ stat_measure %>%
   labs(x= "Hedges g effect size", y= "BH pval (log10)")+
   theme(legend.position = "none")
 
-stat_measure %>% 
+gnomad_decoded %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
   ggplot(aes(x= effect_size, y= adjusted_pval))+
   geom_point(color= "grey")+
-  geom_point(data= stat_measure %>% 
+  geom_point(data= gnomad_decoded %>% 
                distinct(IDs, .keep_all = TRUE) %>%
                filter(IDs=="2-25234373-C-T"),
              aes(x= effect_size, y=adjusted_pval), color= "red")+
-  geom_point(data= stat_measure %>% 
+  geom_point(data= gnomad_decoded %>% 
                distinct(IDs, .keep_all = TRUE) %>% 
                filter(str_detect(IDs, bhadjusted_selected)),
              aes(x= effect_size, y=adjusted_pval), color= "yellow")+
-  geom_point(data= stat_measure %>% 
+  geom_point(data= gnomad_decoded %>% 
                distinct(IDs, .keep_all = TRUE) %>% 
                filter(str_detect(IDs, effsize_selected)),
              aes(x= effect_size, y=adjusted_pval), color= "orange")+
@@ -638,7 +758,7 @@ stat_measure %>%
 # Plots for BH ≤ 0.1
 **R882H is curve #2 aka 2-25234373-C-T.**
 ```{r}
-selected_variants <- stat_measure %>% filter(adjusted_pval <= 0.1)
+selected_variants <- gnomad_decoded %>% filter(adjusted_pval <= 0.1)
 n <- 0
 
 set.seed(1234)
@@ -653,14 +773,7 @@ for(i in unique(selected_variants$IDs)) {
     filter(IDs == i
     ) %>% 
     bind_rows(., All) %>% 
-    select(IDs, age_bin, sample_frequency,
-           bin_age, #distribution_mean,
-           nbr_individuals, mann_pval, adjusted_pval,
-           effect_size, effect_size_cat,
-           HGVSP, occurrence_in_cosmic, 
-           Mutation.somatic.status,
-           variant_in_cosmic, #prot_change, 
-           adjusted_pval)
+    distinct(IDs, bin_age, .keep_all = TRUE)
   n <- n + 1
   p <- data_plot %>% 
     ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+
@@ -759,14 +872,7 @@ for(i in unique(selected_variants$IDs)) {
     filter(IDs == i
     ) %>% 
     bind_rows(., All) %>% 
-    select(IDs, age_bin, sample_frequency,
-           bin_age, #distribution_mean,
-           nbr_individuals, mann_pval, adjusted_pval,
-           effect_size, effect_size_cat,
-           HGVSP, occurrence_in_cosmic, 
-           Mutation.somatic.status,
-           variant_in_cosmic, #prot_change, 
-           adjusted_pval)
+    distinct(IDs, bin_age, .keep_all = TRUE)
   n <- n + 1
   p <- data_plot %>% 
     ggplot(aes(x = bin_age, y= sample_frequency, color= IDs))+
