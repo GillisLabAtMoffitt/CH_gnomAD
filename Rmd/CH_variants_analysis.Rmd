@@ -51,6 +51,7 @@ div.blue { background-color:#0099CC; border-radius: 5px; padding: 20px; font-siz
 ```{r library, include=FALSE}
 library(tidyverse)
 library(gtsummary)
+library(ggconsort)
 
 theme_gtsummary_compact()
 theme_set(theme_classic())
@@ -58,18 +59,41 @@ theme_set(theme_classic())
 
 ```{r load}
 gnomad_variants <-
-  read.delim(paste0(here::here(), "/chr2_CH_variants.vcf.gz"), 
+  read.delim(paste0(here::here(), "/chr2_CH_variants.vcf.gz"),
              colClasses = c("ALT"="character"),
               sep = " ")
+  # read.delim(paste0(here::here(), "/short_ch2.txt"),
+  #            sep = " ")
 known_CH_genes <-
   read_table(paste0(here::here(), "/3390851_Covered.bed"), 
     col_names = FALSE, skip = 2)
-# known_CH_gene_list <- paste0(c(unique(known_CH_genes$X4)), collapse = "|")
 known_CH_gene_list <- c(unique(known_CH_genes$X4))
 
 ```
 
-We want to look at skewness of age distribution in gnomad. We don't have access to real numerical age in this data but was wondering what is the age distribution of Cosmic patients presenting variants found in gnomAD. Note : Each patient is represented once even if patient exhibit multiple variant.  
+```{r create known CH variable}
+gnomad_variants <- gnomad_variants %>% 
+  mutate(known_CH_gene = case_when(
+    SYMBOL %in% known_CH_gene_list     ~ "Yes",
+    TRUE                               ~ "No"
+  ), known_CH_gene = factor(known_CH_gene, levels = c("No", "Yes")))
+rm(known_CH_gene_list, known_CH_genes)
+```
+
+We want to look at skewness of age distribution in gnomad.  
+GnomAD has data available for :  
+- v2 release is composed of 125,748 exomes and 15,708 genomes (GRCh37)  
+- gnomAD structural variant (SV) v2.1 represents 10,847 genomes (GRCh37)  
+- v3.1 spans 76,156 genomes (GRCh38)  
+
+The gnomAD v2.1 data set contains data from 125,748 exomes and 15,708 whole genomes, all mapped to the GRCh37/hg19 reference sequence. The gnomAD v3.1 data set contains 76,156 whole genomes (and no exomes), all mapped to the GRCh38 reference sequence. Most of the genomes from v2 are included in v3.1.
+
+download page : https://gnomad.broadinstitute.org/downloads  
+Is ASXL1 real?
+https://gnomad.broadinstitute.org/variant/20-31022441-A-AG?dataset=gnomad_r2_1
+
+## Quick look at age on overall variant before filtering
+We don't have access to real numerical age in this data but was wondering what is the age distribution of Cosmic patients presenting variants found in gnomAD. Note : Each patient is represented once even if patient exhibit multiple variant.  
 Population age in chromosome `r as.character(gnomad_variants %>% distinct(X.CHROM))` (Cosmic samples)
 ```{r Population age}
 # gnomad_variants %>% 
@@ -80,100 +104,302 @@ Population age in chromosome `r as.character(gnomad_variants %>% distinct(X.CHRO
 
 gnomad_variants %>% 
   distinct(Sample.name, .keep_all = TRUE) %>% 
-  ggplot(aes(x= Age, fill= SYMBOL %in% known_CH_gene_list))+
+  ggplot(aes(x= Age, fill= known_CH_gene))+
   geom_histogram(binwidth = 1)+
   ggtitle("Cosmic Age Distribution in Non Selected GnomAD Variants")+
   xlim(0, 100)+
-  scale_fill_discrete(name = NULL, labels = c("Not CH genes", "CH genes")
-                      )
+  scale_fill_discrete(name = "Is CH gene?")
 
 gnomad_variants %>% 
   distinct(Sample.name, .keep_all = TRUE) %>%
   select(Age) %>% 
-  tbl_summary() %>% 
+  tbl_summary(
+    statistic = list(all_continuous() ~ "{mean} ({sd})"),
+    digits = all_continuous() ~ 2
+    ) %>% 
   modify_caption("**Cosmic Age Distribution**")
-
-gnomad_variants %>% 
-  distinct(Sample.name, .keep_all = TRUE) %>%
-  select(Age, SYMBOL) %>%
-  mutate(is_CH_gene = case_when(
-    SYMBOL %in% known_CH_gene_list     ~ "Yes",
-    TRUE                               ~ "No"
-  )) %>% 
-  tbl_summary(by = is_CH_gene,
-              label = c(Age ~ "Age in Cosmic"),
-              sort = everything() ~ "frequency") %>% 
-  modify_spanning_header(all_stat_cols() ~ "Is a CH gene?")
 ```
 
+# I. Filtering steps for potential CH variants selection
 
 The number of variants in chromosome `r as.character(gnomad_variants %>% distinct(X.CHROM))` is `r nrow(gnomad_variants %>% distinct(IDs))`.
-```{r BH}
+```{r BH age}
 pval_selection <- 0.05
-mannw_variants <- gnomad_variants %>% 
-  filter(adjusted_pval <= pval_selection)
+AB_distribution_variants <- gnomad_variants %>% 
+  filter(adjusted_AB_pval <= pval_selection)
 ```
-In chromosome `r as.character(mannw_variants %>% distinct(X.CHROM))`, the number of variants with BH ≤ `r pval_selection` is `r nrow(mannw_variants %>% distinct(IDs))`.
+In chromosome `r as.character(AB_distribution_variants %>% distinct(X.CHROM))`, the number of variants with BH on AB distribution ≤ `r pval_selection` is `r nrow(AB_distribution_variants %>% distinct(IDs))`.
 ```{r Hedges g}
 hedges_selection <- "negligible|small"
-hedges_variants <- mannw_variants %>%
+hedges_variants <- AB_distribution_variants %>%
   # filter(effect_size_cat != "negligible")
-  filter(!str_detect(effect_size_cat, hedges_selection))
+  filter(!str_detect(AB_effect_size_cat, hedges_selection))
+max(hedges_variants$AB_effect_size)
+min(hedges_variants$AB_effect_size)
 ```
 In chromosome `r as.character(hedges_variants %>% distinct(X.CHROM))`, the number of variants with Hedges g effect size better than `r hedges_selection %>% str_replace(., "\\|", " or ")` is `r nrow(hedges_variants %>% distinct(IDs))`.
 
-```{r homozygous}
-zygote_variants <- hedges_variants %>% 
-  filter(nbr_hom_individuals == 0)
-```
-In chromosome `r as.character(zygote_variants %>% distinct(X.CHROM))`, the number of variants with NO homozygous individuals is `r nrow(zygote_variants %>% distinct(IDs))`.
-
-```{r zygote}
-CH_variants <- zygote_variants %>%
+```{r protein coding}
+CH_variants <- hedges_variants %>%
   filter(is_gencode_protein_coding_gene == "Yes")
 ```
 In chromosome `r as.character(CH_variants %>% distinct(X.CHROM))`, the number of variants which are on a protein coding gene is `r nrow(CH_variants %>% distinct(IDs))`. These variants are located on `r nrow(CH_variants %>% distinct(IDs, .keep_all = TRUE) %>% distinct(SYMBOL))` genes.
-<br>
-<br>
 
-# GnomAD Analysis for each variants
-```{r}
-CH_variants <- CH_variants %>% 
-  mutate(known_CH_genes = case_when(
-    SYMBOL %in% known_CH_gene_list                  ~ "known CH gene",
-    TRUE                                            ~ "not known CH gene"
-  ))
+## **Figure 1**. Consort diagram
+
+```{r consort, fig.width=12}
+study_cohorts <- 
+  gnomad_variants %>%
+  cohort_start("**Assessed for eligibility**") %>%
+  # Define cohorts using named expressions
+  # Notice that you can use previously defined cohorts in subsequent steps
+  cohort_define(
+  AB_distribution_variants = .full %>% 
+    filter(adjusted_AB_pval <= pval_selection),
+  
+  hedges_variants = AB_distribution_variants  %>% 
+    filter(!str_detect(AB_effect_size_cat, hedges_selection)),
+  
+  CH_variants = hedges_variants  %>% 
+    filter(is_gencode_protein_coding_gene == "Yes"),
+  
+    CH_variants_end = CH_variants,
+  
+  # anti_join is useful for counting exclusions
+    excluded1 = anti_join(.full, AB_distribution_variants, by = "IDs"),
+    excluded2 = anti_join(AB_distribution_variants, hedges_variants, by = "IDs"),
+    excluded3 = anti_join(hedges_variants, CH_variants, by = "IDs"),
+  ) %>%
+  # Provide text labels for cohorts
+  cohort_label(
+    excluded1 = "<span style='color:darkblue'>excluded germline variants</span>",
+    excluded2 = "<span style='color:darkblue'>same</span>",
+    excluded3 = "<span style='color:darkblue'>select for protein coding mutations</span>",
+    AB_distribution_variants = "**Fit somatic mutation**",
+    hedges_variants = "**Fit somatic mutation**",
+    CH_variants = "**Fit protein coding**",
+    CH_variants_end = "**Sample Study**"
+  )
+study_consort <- study_cohorts %>%
+  consort_box_add(
+    "full", 0, 40, cohort_count_adorn(study_cohorts, .full)
+  ) %>%
+  consort_box_add(
+    "exc_germline", 0.2, 35, glue::glue(
+      "{cohort_count_adorn(study_cohorts, excluded1)}<br> 
+      • BH pval
+      ")
+  ) %>%
+  consort_box_add(
+    "BH_pval_distribution", 0, 30, cohort_count_adorn(study_cohorts, AB_distribution_variants)
+  ) %>%
+  consort_box_add(
+    "exc_germline_2", 0.2, 25, glue::glue(
+      "{cohort_count_adorn(study_cohorts, excluded2)}<br> 
+      • Hedges g <br>
+      • could combine with previous
+      ")
+  ) %>%
+  consort_box_add(
+    "hedges_distribution", 0, 20, cohort_count_adorn(study_cohorts, hedges_variants)
+  ) %>%
+  consort_box_add(
+    "protein_coding", 0.2, 15, glue::glue(
+      "{cohort_count_adorn(study_cohorts, excluded3)}<br> 
+      • include variant present in a protein coding gene
+      ")
+  ) %>%
+  consort_box_add(
+    "selected_variants", 0, 10, cohort_count_adorn(study_cohorts, CH_variants)
+  ) %>%
+  # consort_box_add(
+  #   "exc_standard_care", 0.2, 5, glue::glue(
+  #     "{cohort_count_adorn(study_cohorts, excluded4)}<br> 
+  #     • exclude patients with more than 1 line as Neo <br> 
+  #     • exclude patients with maintenance within their CH_variants <br> 
+  #     • exclude patients with more than 6 cycles in Neo, more than 9 cycles total in upfront chemo or more than 9 cycles in upfront surgery
+  #     ")
+  # ) %>%
+  consort_box_add(
+    "CH_variants", 0, 0, cohort_count_adorn(study_cohorts, CH_variants_end)
+  ) %>%
+  
+  consort_arrow_add(
+    end = "exc_germline", end_side = "left", start_x = 0, start_y = 35
+  ) %>%
+  consort_arrow_add(
+    end = "exc_germline_2", end_side = "left", start_x = 0, start_y = 25
+  ) %>%
+  consort_arrow_add(
+    end = "protein_coding", end_side = "left", start_x = 0, start_y = 15
+  ) %>%
+  consort_arrow_add(
+    end = "exc_standard_care", end_side = "left", start_x = 0, start_y = 5
+  ) %>%
+  consort_arrow_add(
+    end = "CH_variants", end_side = "top", start_x = 0, start_y = 40
+  )
+study_consort %>%
+  ggplot() + 
+  geom_consort() +
+  theme_consort(margin_h = c(1,6), margin_v = c(0,30))
 ```
+<br>
+<br>
 
-## Number of variants per gene 
+# II. GnomAD variants description
+
+## **Figure 2**. Prevalence plot - how many individuals (can only know the nbr of individuals with age and AB available) have the mutation
+<div class = "row">
+<div class = "col-md-6">
+```{r prevalence plot, fig.height=20, fig.width=12}
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>%
+  ggplot(aes(x= fct_reorder(IDs, desc(nbr_individuals)), y= nbr_individuals, fill= known_CH_gene))+
+  geom_bar(stat = "identity")+
+  ggtitle("Prevalence of variants in chromosome 2 using nbr of individuals with age")+
+  scale_fill_discrete(name = "Is CH gene?")+
+  labs(x= NULL, y="Prevalence of variants")+
+  theme(axis.text.y = element_blank())+
+  coord_flip()
+
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x= fct_reorder(IDs, desc(nbr_individuals)), y= nbr_individuals, fill= known_CH_gene))+
+  geom_bar(stat = "identity")+
+  ggtitle("Prevalence of variants per gene in chromosome 2")+ 
+  # scale_fill_discrete(name = NULL, labels = c("Not CH genes", "CH genes"))+
+  labs(x= NULL, y="Prevalence of variants")+
+  coord_flip()+
+  facet_wrap(known_CH_gene ~ ., 
+             scales = "free")+ 
+  theme(legend.position = "none",
+        axis.text.y = element_blank(),
+    strip.background = element_blank(),
+    strip.text.x = element_blank()
+  )
+```
+</div>
+
+<div class = "col-md-6">
+```{r prevalence plot2, fig.height=20, fig.width=12}
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>%
+  ggplot(aes(x= fct_reorder(IDs, desc(total_allele_balance)), y= total_allele_balance, fill= known_CH_gene))+
+  geom_bar(stat = "identity")+
+  ggtitle("Prevalence of variants per gene in chromosome 2 using nbr of individuals with AB")+
+  scale_fill_discrete(name = "Is CH gene?")+
+  labs(x= NULL, y="Prevalence of variants")+
+  theme(axis.text.y = element_blank())+
+  coord_flip()
+
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  ggplot(aes(x= fct_reorder(IDs, desc(total_allele_balance)), y= total_allele_balance, fill= known_CH_gene))+
+  geom_bar(stat = "identity")+
+  ggtitle("Prevalence of variants in chromosome 2")+ 
+  # scale_fill_discrete(name = NULL, labels = c("Not CH genes", "CH genes"))+
+  labs(x= NULL, y="Prevalence of variants")+
+  coord_flip()+
+  facet_wrap(known_CH_gene ~ ., 
+             scales = "free")+ 
+  theme(legend.position = "none",
+        axis.text.y = element_blank(),
+    strip.background = element_blank(),
+    strip.text.x = element_blank()
+  )
+```
+</div>
+</div>
+
+## Fig S1a. Number of variants per gene 
+<div class = "row">
+<div class = "col-md-6">
 ```{r fig number of variant per gene, fig.height=20, fig.width=12}
 CH_variants %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
-  ggplot(aes(x= SYMBOL, fill= known_CH_genes))+
+  ggplot(aes(x= fct_infreq(SYMBOL), fill= known_CH_gene))+
   geom_bar()+
   ggtitle("Number of variants per gene in chromosome 2")+ 
-  scale_fill_discrete(name = NULL)+
+  scale_fill_discrete(name = "Is CH gene?")+
   labs(x= NULL, y="Number of variants")+
   coord_flip()
 ```
+</div>
 
+<div class = "col-md-6">
+```{r, fig.height=20, fig.width=12}
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  group_by(SYMBOL) %>% 
+  mutate(nbr_variant_per_gene = n()) %>% 
+  distinct(SYMBOL, .keep_all = TRUE) %>% 
+  mutate(normalized_nbr_variant = nbr_variant_per_gene / exon_effective_length) %>% 
+  ggplot(aes(x= fct_reorder(SYMBOL, desc(normalized_nbr_variant)), y= normalized_nbr_variant, fill= known_CH_gene))+
+  geom_bar(stat = "identity")+
+  ggtitle("Number of variants per gene in chromosome 2 \nNormalized over exon length")+ 
+  scale_fill_discrete(name = "Is CH gene?")+
+  labs(x= NULL, y="Number of variants")+
+  coord_flip()
+```
+</div>
+</div>
 
+## Fig S1b. Number of variants per gene faceted by known CH genes
 ```{r fig number of variant per gene2, fig.height=15, fig.width=12}
 CH_variants %>%
   distinct(IDs, .keep_all = TRUE) %>% 
   # mutate(known_CH_gene = fct_relevel(known_CH_gene, "known CH gene")) %>%
-  ggplot(aes(x= fct_infreq(SYMBOL), fill= known_CH_genes))+
+  ggplot(aes(x= fct_infreq(SYMBOL), fill= known_CH_gene))+
   geom_bar()+
   ggtitle("Number of variants per gene")+ 
   # scale_fill_discrete(name = NULL, labels = c("Not CH genes", "CH genes"))+
   labs(x= NULL, y="Number of variants")+
   coord_flip()+
-  facet_wrap(known_CH_genes ~ ., 
+  facet_wrap(known_CH_gene ~ ., 
              scales = "free")+ 
-  theme(
+  theme(legend.position = "none",
     strip.background = element_blank(),
     strip.text.x = element_blank()
   )
+
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  group_by(SYMBOL) %>% 
+  mutate(nbr_variant_per_gene = n()) %>% 
+  distinct(SYMBOL, .keep_all = TRUE) %>% 
+  mutate(normalized_nbr_variant = nbr_variant_per_gene / exon_effective_length) %>% 
+  ggplot(aes(x= fct_reorder(SYMBOL, desc(normalized_nbr_variant)), y= normalized_nbr_variant, fill= known_CH_gene))+
+  geom_bar(stat = "identity")+
+  ggtitle("Number of variants per gene \nNormalized over exon length")+ 
+  # scale_fill_discrete(name = NULL, labels = c("Not CH genes", "CH genes"))+
+  labs(x= NULL, y="Number of variants")+
+  coord_flip()+
+  facet_wrap(known_CH_gene ~ ., 
+             scales = "free")+ 
+  theme(legend.position = "none",
+    strip.background = element_blank(),
+    strip.text.x = element_blank()
+  )
+```
+
+## Which gene shows high number of variants?
+```{r}
+CH_variants %>% 
+  filter(!is.na(SYMBOL)) %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+    
+  mutate(known_CH_genes = case_when(
+    known_CH_gene == "Yes"                          ~ SYMBOL,
+    TRUE                                            ~ "Not CH genes (average)"
+  )) %>%
+  select(IDs, SYMBOL, known_CH_genes) %>% 
+  arrange(known_CH_genes) %>%
+  group_by(SYMBOL) %>%
+  mutate(number_of_variants_per_gene = n()) %>% 
+  distinct(SYMBOL, .keep_all = TRUE) %>% 
+  select(-IDs) %>% 
+  arrange(desc(number_of_variants_per_gene))
 ```
 
 ## Number of overall variants per gene
@@ -182,26 +408,26 @@ Averaged "Not a CH genes" in 1 bar
 CH_variants %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
     
-  mutate(known_CH_gene = case_when(
-    SYMBOL %in% known_CH_gene_list                  ~ SYMBOL,
+  mutate(known_CH_genes = case_when(
+    known_CH_gene == "Yes"                          ~ SYMBOL,
     TRUE                                            ~ "Not CH genes (average)"
   )) %>% 
-  select(IDs, SYMBOL, known_CH_gene) %>% 
-  arrange(known_CH_gene) %>% 
-  group_by(known_CH_gene) %>% 
+  select(IDs, SYMBOL, known_CH_genes) %>% 
+  arrange(known_CH_genes) %>% 
+  group_by(known_CH_genes) %>% 
   mutate(number_of_variants_per_gene = n()) %>% 
   distinct(SYMBOL, .keep_all = TRUE) %>% 
   select(-IDs) %>% 
   
-  group_by(known_CH_gene) %>% 
+  group_by(known_CH_genes) %>% 
   mutate(number_of_gene = n()) %>%
   ungroup() %>% 
   mutate(average_of_variants_per_gene = number_of_variants_per_gene / number_of_gene) %>%
-  distinct(known_CH_gene, .keep_all = TRUE) %>% 
+  distinct(known_CH_genes, .keep_all = TRUE) %>% 
 
-  mutate(known_CH_gene = fct_relevel(known_CH_gene, "Not CH genes (average)")) %>%
-  ggplot(aes(x= known_CH_gene, y= average_of_variants_per_gene,
-             fill= known_CH_gene == "Not CH genes (average)"
+  mutate(known_CH_genes = fct_relevel(known_CH_genes, "Not CH genes (average)")) %>%
+  ggplot(aes(x= known_CH_genes, y= average_of_variants_per_gene,
+             fill= known_CH_genes != "Not CH genes (average)"
              ))+
   geom_bar(stat = "identity", show.legend = FALSE)+
   ggtitle("Number of variants per gene")+
@@ -209,28 +435,38 @@ CH_variants %>%
   coord_flip()
 ```
 
-Which gene shows high number of variants?
+## Number of overall variants faceted by known CH genes
 ```{r}
 CH_variants %>% 
-  filter(!is.na(SYMBOL)) %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
     
-  mutate(known_CH_gene = case_when(
-    SYMBOL %in% known_CH_gene_list          ~ "known CH gene",
-    TRUE                                            ~ SYMBOL
-  )) %>% select(IDs, SYMBOL, known_CH_gene) %>% 
-  arrange(known_CH_gene) %>% 
-  group_by(known_CH_gene) %>% 
+  mutate(known_CH_genes = case_when(
+    known_CH_gene == "Yes"                          ~ SYMBOL,
+    TRUE                                            ~ "Not CH genes"
+  )) %>% 
+  select(IDs, SYMBOL, known_CH_genes) %>% 
+  arrange(known_CH_genes) %>% 
+  group_by(known_CH_genes) %>% 
   mutate(number_of_variants_per_gene = n()) %>% 
-  distinct(SYMBOL, .keep_all = TRUE) %>% 
-  select(-IDs) %>% 
-  arrange(desc(number_of_variants_per_gene))
+  distinct(known_CH_genes, .keep_all = TRUE) %>% 
+
+  mutate(known_CH_genes = fct_relevel(known_CH_genes, "Not CH genes")) %>%
+  ggplot(aes(x= known_CH_genes, y= number_of_variants_per_gene,
+             fill= known_CH_genes != "Not CH genes"
+             ))+
+  geom_bar(stat = "identity", show.legend = FALSE)+
+  ggtitle("Number of variants per gene")+
+  labs(x= NULL)+
+  coord_flip()
 ```
 
-## Age distribution of known CH variant (can do the same for all potential variants)
+## **Figure 3**. Distributions of known CH variant (can do the same for all potential variants)
+<div class = "row">
+<div class = "col-md-6">
+#### Age distribution of known CH variant (can do the same for all potential variants)
 ```{r}
 known_CH_variants <- CH_variants %>% 
-  filter(SYMBOL %in% known_CH_gene_list) %>% 
+  filter(known_CH_gene == "Yes") %>%
   distinct(IDs, .keep_all = TRUE) %>% 
 
   select(-sample_frequency, -sample_count, -nbr_individuals) %>% 
@@ -327,18 +563,18 @@ for(i in unique(known_CH_variants$IDs)) {
   
   p <- p+
     # geom_vline(xintercept = data_plot$distribution_mean, color= "red")+
+    # geom_text(
+    #   data    = data_plot %>% 
+    #            filter(IDs == i),
+    #   mapping = aes(x = -Inf, y = -Inf, label = paste0("p-MannW= ", round(mann_pval, 3))),
+    #   colour = "black",
+    #   hjust   = 0,
+    #   vjust   = -9
+    # )+
     geom_text(
       data    = data_plot %>% 
                filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("p-MannW= ", round(mann_pval, 3))),
-      colour = "black",
-      hjust   = 0,
-      vjust   = -9
-    )+
-    geom_text(
-      data    = data_plot %>% 
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("BH= ", round(adjusted_pval, 3))),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("BH= ", round(adjusted_age_pval, 3))),
       colour = "black",
       hjust   = 0,
       vjust   = -11
@@ -346,14 +582,14 @@ for(i in unique(known_CH_variants$IDs)) {
     geom_text(
       data    = data_plot %>% 
                filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(effect_size, 3))),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(age_effect_size, 3))),
       hjust   = 0,
       vjust   = -17
     )+
     geom_text(
       data    = data_plot %>% 
                filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", effect_size_cat)),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", age_effect_size_cat)),
       hjust   = 0,
       vjust   = -15
     )+
@@ -410,14 +646,165 @@ for(i in unique(known_CH_variants$IDs)) {
 
 }
 ```
+</div>
 
+<div class = "col-md-6">
+#### Allele balance distribution of known CH variant (can do the same for all potential variants)
+```{r}
+gnomad <- known_CH_variants %>%
+  filter(IDs != "All individuals") %>% 
+  select(-AB_count) %>% 
+  # 1. Extract count per AB bin for heterozygous ind--
+  # ab_hist_alt_bin_freq,Number=A,Type=String,Description="Histogram for AB in heterozygous individuals; 
+  # bin edges are: 0.00|0.05|0.10|0.15|0.20|0.25|0.30|0.35|0.40|0.45|0.50|0.55|0.60|0.65|0.70|0.75|0.80|0.85|0.90|0.95|1.00>
+  mutate(ab_hist_alt_bin_freq = str_match(INFO, "ab_hist_alt_bin_freq=(.*?);")[,2]) %>%
+  separate(col = ab_hist_alt_bin_freq,
+           into = c("0.00-0.05","0.05-0.10","0.10-0.15","0.15-0.20",
+                    "0.20-0.25","0.25-0.30","0.30-0.35","0.35-0.40",
+                    "0.40-0.45","0.45-0.50","0.50-0.55","0.55-0.60",
+                    "0.60-0.65","0.65-0.70","0.70-0.75","0.75-0.80",
+                    "0.80-0.85","0.85-0.90","0.90-0.95","0.95-1.00"),
+           sep = "\\|", remove = TRUE, extra = "warn", fill = "right") %>%
+  mutate(across(grep("^[[:digit:]]", colnames(.)), ~ as.numeric(.))) %>%
+  add_row("IDs"="Reference", "ID"="ASXL1 20-32435697-C-T",
+          "0.00-0.05" = 0, "0.05-0.10"  = 0, "0.10-0.15" = 0, 
+          "0.15-0.20" = 1, "0.20-0.25" = 2, "0.25-0.30" = 6, 
+          "0.30-0.35" = 87, "0.35-0.40" = 274, "0.40-0.45" = 1220,
+          "0.45-0.50" = 2286, "0.50-0.55" = 1737, "0.55-0.60" = 506,
+          "0.60-0.65" = 112, "0.65-0.70" = 14, "0.70-0.75" = 4,
+          "0.75-0.80" = 0, "0.80-0.85" = 1, "0.85-0.90" = 0,
+          "0.90-0.95" = 0, "0.95-1.00" = 0) %>%
+  mutate(total_allele_balance = rowSums(select(.,`0.00-0.05`:`0.95-1.00`), na.rm = TRUE)) %>%
+  
+  select(IDs, everything())
+
+gnomad <- gnomad %>%
+  pivot_longer(cols = c(grep("^[[:digit:]]", colnames(.))),
+               names_to = "allele_bin", values_to = "AB_count") %>%
+  mutate(allele_bin = factor(allele_bin,
+                             levels = c("0.00-0.05","0.05-0.10","0.10-0.15","0.15-0.20",
+                                        "0.20-0.25","0.25-0.30","0.30-0.35","0.35-0.40",
+                                        "0.40-0.45","0.45-0.50","0.50-0.55","0.55-0.60",
+                                        "0.60-0.65","0.65-0.70","0.70-0.75","0.75-0.80",
+                                        "0.80-0.85","0.85-0.90","0.90-0.95","0.95-1.00"
+                             ))) %>%
+  mutate(AB_bin = case_when(
+    allele_bin == "0.00-0.05"            ~ 0.025,
+    allele_bin == "0.05-0.10"            ~ 0.075,
+    allele_bin == "0.10-0.15"            ~ 0.125,
+    allele_bin == "0.15-0.20"            ~ 0.175,
+    allele_bin == "0.20-0.25"            ~ 0.225,
+    allele_bin == "0.25-0.30"            ~ 0.275,
+    allele_bin == "0.30-0.35"            ~ 0.325,
+    allele_bin == "0.35-0.40"            ~ 0.375,
+    allele_bin == "0.40-0.45"            ~ 0.425,
+    allele_bin == "0.45-0.50"            ~ 0.475,
+    allele_bin == "0.50-0.55"            ~ 0.525,
+    allele_bin == "0.55-0.60"            ~ 0.575,
+    allele_bin == "0.60-0.65"            ~ 0.625,
+    allele_bin == "0.65-0.70"            ~ 0.675,
+    allele_bin == "0.70-0.75"            ~ 0.725,
+    allele_bin == "0.75-0.80"            ~ 0.775,
+    allele_bin == "0.80-0.85"            ~ 0.825,
+    allele_bin == "0.85-0.90"            ~ 0.875,
+    allele_bin == "0.90-0.95"            ~ 0.925,
+    allele_bin == "0.95-1.00"            ~ 0.975
+  )) %>%
+  mutate(AB_frequency = AB_count / total_allele_balance)
+
+
+## Step 1 : Limit variants with a skewed age distribution
+# allele_balance_pval <-  data.frame(matrix(nrow=length(unique(gnomad$IDs)), ncol=1,
+#                                 dimnames = list(c(unique(gnomad$IDs)),
+#                                                 c("value")) ))
+n <- 0
+set.seed(1234)
+for(i in unique(gnomad$IDs)) {
+  
+  All <- gnomad %>%
+    filter(IDs == "Reference"
+    ) %>% 
+    mutate(IDs = "Ref")
+  data_plot <- gnomad %>%
+    filter(IDs == i
+    ) %>%
+    bind_rows(., All) %>%
+    distinct(IDs, AB_bin, .keep_all = TRUE)
+  
+  n <- n + 1
+  p <- data_plot %>%
+    ggplot(aes(x = AB_bin, y= AB_frequency, color= IDs))+
+    geom_smooth(alpha= 0.5, se = FALSE, method = "loess",
+                span = 0.6
+    )+
+    labs(title = n)+
+    geom_col(data = data_plot %>%
+               filter(IDs == i) ,
+             aes(x= AB_bin, y= AB_frequency),
+             position = "identity",
+             fill = "red",
+             alpha = 0.1)+
+    ylim(0, max(data_plot$AB_frequency))+
+    theme(legend.position = "none")
+  
+  p <- p+
+    geom_text(
+      data    = data_plot %>% 
+        filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("p-AB= ", round(allele_balance_pval, 3))),
+      colour = "black",
+      hjust   = 0,
+      vjust   = -30
+    )+
+    geom_text(
+      data    = data_plot %>% 
+        filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("p-AB adjusted= ", round(adjusted_AB_pval, 3))),
+      colour = "red",
+      hjust   = 0,
+      vjust   = -28
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(AB_effect_size, 3))),
+      hjust   = 0,
+      vjust   = -17
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", AB_effect_size_cat)),
+      hjust   = 0,
+      vjust   = -15
+    )+
+    geom_text(
+      data    = data_plot %>% 
+               filter(IDs == i),
+      mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_individuals with age= ", total_allele_balance)),
+      colour = "darkblue",
+      hjust   = 0,
+      vjust   = -min(data_plot$AB_frequency)
+    )
+  
+  print(p)
+  
+}
+```
+</div>
+</div>
+
+<br>
+
+## **Table 2**. VEP. What to include?
 ## VEP : Higher rank only - known CH variant (can do the same for all potential variants) 
 ```{r}
 variants_in_gnomAD <- CH_variants %>% 
   distinct(IDs, .keep_all = TRUE) 
 variants_in_gnomAD %>% 
-  select(consequence_group, consequence_rank, known_CH_genes) %>% 
-  tbl_summary(by = known_CH_genes) %>% 
+  select(consequence_group, # consequence_rank, 
+         known_CH_gene) %>% 
+  tbl_summary(by = known_CH_gene) %>% 
   bold_labels() %>% add_overall() %>% 
   add_p() %>% bold_p(t=.05)
 ```
@@ -467,7 +854,15 @@ vep_in_gnomAD <- vep_in_gnomAD %>%
 vep_in_gnomAD <- vep_in_gnomAD %>%
   mutate(HGVSc = str_match(HGVSc, ".(>).")[,1]) %>%
   mutate(SIFT = str_match(SIFT, "[:alnum:]*")[,1]) %>%
-  mutate(PolyPhen = str_match(PolyPhen, "[:alnum:]*_[:alnum:]*|[:alnum:]*")[,1])
+  mutate(PolyPhen = str_match(PolyPhen, "[:alnum:]*_[:alnum:]*|[:alnum:]*")[,1]) %>% 
+  mutate(SOMATIC = case_when(
+    str_detect(SOMATIC, "1")      ~ "Yes",
+    TRUE                          ~ "No"
+  )) %>% 
+  mutate(PHENO = case_when(
+    str_detect(PHENO, "1")        ~ "Yes",
+    TRUE                          ~ "No"
+  ))
 ```
 
 multiple VEP per variants
@@ -486,10 +881,10 @@ vep_in_gnomAD %>%
 
 ```{r}
 vep_in_gnomAD %>%
-  # filter(SYMBOL %in% known_CH_gene_list) %>% 
+  # filter(known_CH_gene == "Yes") %>% 
   distinct(IDs, .keep_all = TRUE) %>%
   unite(IDs, c(IDs, SYMBOL)) %>% 
-  select(Consequence,
+  select(
          BIOTYPE,
          HGVSc,
          VARIANT_CLASS,
@@ -498,8 +893,9 @@ vep_in_gnomAD %>%
          PolyPhen,
          CLIN_SIG,
          SOMATIC,
-         PHENO, known_CH_genes) %>%
-  tbl_summary(by = known_CH_genes) %>%
+         PHENO, known_CH_gene) %>%
+  tbl_summary(by = known_CH_gene,
+              type = list(c(SOMATIC, PHENO) ~ "categorical")) %>%
   bold_labels() %>% add_overall() %>% 
   modify_header(
     label = "**VEP in gmomAD Characteristic**"
@@ -507,28 +903,32 @@ vep_in_gnomAD %>%
   modify_spanning_header(all_stat_cols() ~ "**Variants**")
 ```
 
-## VAF - known CH gene
+## **Figure 4**. VAF and race/ethnicity - known CH gene
 ```{r, fig.width=12, fig.height=25}
 variants_in_gnomAD %>% 
-  filter(SYMBOL %in% known_CH_gene_list) %>% 
+  filter(known_CH_gene == "Yes") %>% slice(1:10) %>% 
   unite(IDs, c(IDs, SYMBOL)) %>% 
   select(IDs,
          nc_freq_allele_count, nc_freq_allele_count_female, nc_freq_allele_count_male,
          nc_freq_allele_count_afr, nc_freq_allele_count_afr_female, nc_freq_allele_count_afr_male,
-         nc_freq_allele_count_amr, nc_freq_allele_count_amr_female, nc_freq_allele_count_amr_male) %>%
+         nc_freq_allele_count_amr, nc_freq_allele_count_amr_female, nc_freq_allele_count_amr_male,
+         nc_freq_allele_count_nfe, nc_freq_allele_count_nfe_female, nc_freq_allele_count_nfe_male, 
+         nc_freq_allele_count_nfe_nwe) %>%
   pivot_longer(cols = -IDs) %>%
   mutate(value = as.numeric(value)) %>%
   mutate(name = str_remove(name, "nc_freq_allele_count_"),
          name = str_replace(name, "nc_freq_allele_count", "overall"),
          name = factor(name, levels = c(
-    "overall", "male", "female", "amr", "amr_male", "amr_female", 
+    "overall", "male", "female", 
+    "nfe", "nfe_male", "nfe_female", "nfe_nwe",
+    "amr", "amr_male", "amr_female", 
     "afr", "afr_male", "afr_female")
     )) %>% 
   mutate(Sex = str_extract(name, "female|male"), Sex = case_when(
     is.na(Sex)             ~ "overall",
     TRUE                   ~ Sex
   )) %>%
-  mutate(Ethnicity = str_extract(name, "afr|amr"), Ethnicity = case_when(
+  mutate(Ethnicity = str_extract(name, "afr|amr|nfe_nwe|nfe"), Ethnicity = case_when(
     is.na(Ethnicity)       ~ "overall",
     TRUE                   ~ Ethnicity
   )) %>%
@@ -542,9 +942,30 @@ variants_in_gnomAD %>%
   coord_flip()
 ```
 
+<br>
+
+***
+<br>
 
 # Cosmic Analysis for each variants
-here 1 time / variant counted
+## **Table 3**. Cosmic description 
+```{r}
+gnomad_variants %>% 
+  distinct(Sample.name, .keep_all = TRUE) %>%
+  select(Age, variant_in_cosmic,
+         SYMBOL, 
+         known_CH_gene) %>%
+  tbl_summary(by = known_CH_gene,
+              label = c(Age ~ "Age in Cosmic"),
+              sort = everything() ~ "frequency",
+              statistic = list(all_continuous() ~ "{mean} ({sd})"),
+    digits = all_continuous() ~ 2) %>% 
+  bold_labels() %>% 
+  modify_spanning_header(all_stat_cols() ~ "Is a CH gene?")
+```
+
+## **Figure 5**. Variant in cosmic - here 1 time / variant counted
+Are CH mutations in COSMIC more common in gnomAD cancer cohort than CH mutations not in COSMIC?
 ```{r plot variant in cosmic}
 CH_variants %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
@@ -584,7 +1005,7 @@ The variable available in Cosmic are:
 <!-- <div class = "col-md-6"> -->
 ```{r, fig.width=12, fig.height=15}
 variants_in_cosmic %>% 
-  ggplot(aes(x= fct_infreq(SYMBOL), fill= known_CH_genes))+
+  ggplot(aes(x= fct_infreq(SYMBOL), fill= known_CH_gene))+
   geom_bar()+
   ggtitle("Number of overall samples per gene")+
   scale_fill_discrete(name = NULL)+
@@ -597,7 +1018,7 @@ variants_in_cosmic %>%
 ```{r, fig.width=12, fig.height=15}
 variants_in_cosmic %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
-  ggplot(aes(x= fct_infreq(SYMBOL), fill= known_CH_genes))+
+  ggplot(aes(x= fct_infreq(SYMBOL), fill= known_CH_gene))+
   geom_bar()+
   ggtitle("Number of variants per gene")+
   scale_fill_discrete(name = NULL)+
@@ -610,7 +1031,7 @@ variants_in_cosmic %>%
 
 
 
-## Cosmic Patients/Cell Line Characteristics
+## III. Cosmic Patients/Cell Line Characteristics
 
 ```{r Cosmic Patients/Cell Line Characteristics}
 # show_header_names(tbl)
@@ -618,7 +1039,10 @@ variants_in_cosmic %>%
   distinct(Sample.name, .keep_all = TRUE) %>% 
   unite(IDs, c(IDs, SYMBOL)) %>% 
   select(Age) %>% 
-  tbl_summary() %>% 
+  tbl_summary(
+    statistic = list(all_continuous() ~ "{mean} ({sd})"),
+    digits = all_continuous() ~ 2
+  ) %>% 
   bold_labels() %>% 
   modify_header(
     label = "**Cosmic Patients Characteristics**"
@@ -627,7 +1051,7 @@ variants_in_cosmic %>%
 
 variants_in_cosmic %>% 
   distinct(Sample.name, .keep_all = TRUE) %>% 
-  ggplot(aes(x= Age, fill= known_CH_genes))+
+  ggplot(aes(x= Age, fill= known_CH_gene))+
   geom_histogram(binwidth = 1)+
   ggtitle("Cosmic Age Distribution in Selected GnomAD Variants")+
   xlim(0, 100)+
@@ -664,7 +1088,7 @@ variants_in_cosmic %>%
 <!-- for (i in cosmic_var1){ -->
 <!--   print( -->
 <!--     variants_in_cosmic %>% -->
-<!--       filter(SYMBOL %in% known_CH_gene_list) %>%  -->
+<!--       filter(known_CH_gene == "Yes") %>%  -->
 <!--       ggplot(aes(x= .data[[i]] ))+ -->
 <!--       geom_bar()+ -->
 <!--       facet_wrap(.~ IDs, ncol = 3) -->
@@ -677,7 +1101,7 @@ variants_in_cosmic %>%
 <!-- for (i in cosmic_var1){ -->
 <!--   print( -->
 <!--     variants_in_cosmic %>% -->
-<!--       filter(SYMBOL %in% known_CH_gene_list) %>%  -->
+<!--       filter(known_CH_gene == "Yes") %>%  -->
 <!--       distinct(IDs, .data[[i]]) %>%  -->
 <!--       ggplot(aes(x= .data[[i]] ))+ -->
 <!--       geom_bar() -->
@@ -735,7 +1159,7 @@ variants_in_cosmic %>%
 <!-- for (i in cosmic_var2){ -->
 <!--   print( -->
 <!--     variants_in_cosmic %>% -->
-<!--       filter(SYMBOL %in% known_CH_gene_list) %>%  -->
+<!--       filter(known_CH_gene == "Yes") %>%  -->
 <!--       ggplot(aes(x= .data[[i]] ))+ -->
 <!--       geom_bar()+ -->
 <!--       facet_wrap(.~ IDs, ncol = 2) -->
@@ -748,7 +1172,7 @@ variants_in_cosmic %>%
 <!-- for (i in cosmic_var2){ -->
 <!--   print( -->
 <!--     variants_in_cosmic %>% -->
-<!--       filter(SYMBOL %in% known_CH_gene_list) %>%  -->
+<!--       filter(known_CH_gene == "Yes") %>%  -->
 <!--       distinct(IDs, .data[[i]]) %>%  -->
 <!--       ggplot(aes(x= .data[[i]] ))+ -->
 <!--       geom_bar() -->
@@ -774,7 +1198,7 @@ variants_in_cosmic %>%
 
 
 
-# Bick Analysis for each variants
+# VI. Bick Analysis for each variants
 <!-- **CH R882H mutation is depicted in red**   -->
 <!-- bh adjusted_selected in yellow    -->
 <!-- effect size_selected in orange -->
@@ -825,8 +1249,29 @@ ExAC_NFE_MAF Frequency of existing variant in ExAC Non-Finnish European populati
 ExAC_OTH_MAF Frequency of existing variant in ExAC combined other combined populations   
 ExAC_SAS_MAF Frequency of existing variant in ExAC South Asian population   
 CLIN_SIG Clinical significance of variant from dbSNP Somatic status of existing variant(s)  
-SOMATIC 
+SOMATIC Somatic status of existing variant(s)  
+[88- SOMATIC Somatic status of each ID reported under Existing_variation (0, 1, or null).]  
 PHENO Indicates if existing variant is associated with a phenotype, disease or trait  
+[99-PHENO  Indicates if existing variant is associated with a phenotype, disease or trait (0, 1, or null)]  
+
+SOMATIC - Somatic status of existing variant(s); multiple values correspond to multiple values in the Existing_variation field  
+PHENO - Indicates if existing variant is associated with a phenotype, disease or trait; multiple values correspond to multiple values in the Existing_variation field
+
+73- SIFT The SIFT prediction and/or score, with both given as prediction (score)  
+[SIFT predicts whether an amino acid substitution affects protein function based on sequence homology and the physical properties of amino acids. SIFT can be applied to naturally occurring nonsynonymous polymorphisms and laboratory-induced missense mutations.]  
+74- PolyPhen The PolyPhen prediction and/or score  
+[PolyPhen-2 (Polymorphism Phenotyping v2) is a tool which predicts possible impact of an amino acid substitution on the structure and function of a human protein using straightforward physical and comparative considerations]  
+
+# Questions
+
+* Julie Dutil - ancestry  
+  + I talked with Zhihua Chen.  
+  + He said it depends what we want to study.  
+  + We could use nfe (Non-Finnish European ancestry) which contain nfe_nwe (North-Western European ancestry) + nfe_seu (Southern European ancestry).  
+  + But if we want to be more precise we can use nfe_nwe which is the closest to Great Britain aka Utah individuals. Not using the southern European population is better when comparing with Latino population as they are shown to overlap.  
+  
+* IDH1 in Cosmic  
+  + I checked, IDH1 is present in Cosmic on chr 2. The selected IDH1 variants are not present in Cosmic.  
 
 
 
