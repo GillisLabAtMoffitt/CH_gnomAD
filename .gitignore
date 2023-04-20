@@ -12,10 +12,13 @@
 *.bed
 *.pdf
 *.png
+*.jpeg
 *.tiff
 *.html
 *.jpg
 *.csv
+*.xlsx
+*.txt
 *.rds
 *.gz
 
@@ -25,3 +28,4 @@
 # Example code in progress
 *-Ex.R
 *-Ex.Rmd
+*-Ex.sh
