@@ -86,6 +86,35 @@ bick_genes <- bick_genes %>%
   select(IDs) %>% 
   mutate(CH_bick_genes = "IDs in Bick+WHO")
 known_CH_gene_list <- c(unique(bick_genes$IDs))
+vep_info <-
+  readxl::read_xlsx(paste0(here::here(), "/Chr2 w Bick & WHO CH filter w annotation.xlsx"), 
+                    na = ".")
+```
+
+```{r clean vep}
+vep_info <- vep_info %>% 
+  distinct() %>% 
+  mutate(Polyphen2_HDIV_pred = case_when(
+    Polyphen2_HDIV_pred == "D"     ~ "Probably damaging (>=0.957)",
+    Polyphen2_HDIV_pred == "P"     ~ "Possibly damaging (0.453<=pp2_hdiv<=0.956)",
+    Polyphen2_HDIV_pred == "B"     ~ "Benign (pp2_hdiv<=0.452)"
+  )) %>% 
+  mutate(SIFT_pred = case_when(
+    SIFT_pred == "D"               ~ "Deleterious",
+    SIFT_pred == "T"               ~ "Tolerated"
+  )) %>% 
+  mutate(FATHMM_pred = case_when(
+    FATHMM_pred == "D"             ~ "Deleterious",
+    FATHMM_pred == "T"             ~ "Tolerated"
+  )) %>% 
+  mutate(CADD_phred_cat = case_when(
+    CADD_phred >= 20               ~ "Likely pathogenic",
+    CADD_phred < 20                ~ "< 20"
+  )) %>% 
+  mutate(new_HGVSc_2 = str_match(AAChange.refGene, "c.(.)([:alnum:]*)(.):p.")[,2]) %>% 
+  mutate(new_HGVSc_4 = str_match(AAChange.refGene, "c.(.)([:alnum:]*)(.):p.")[,4]) %>% 
+  unite(new_HGVSc, c(new_HGVSc_2, new_HGVSc_4), sep = ">") %>% 
+  select(-c(SYMBOL, `In Bick & WHO`))
 ```
 
 
@@ -104,7 +133,9 @@ gnomad_variants <- gnomad_variants %>%
     `0.00-0.05` == total_allele_balance               ~ "sequencing noise",
     TRUE                                              ~ "clean sequencing"
   )) %>% 
-  select(-c("0.00-0.05"))
+  select(-c("0.00-0.05")) %>% 
+  left_join(., vep_info,
+            by= "IDs")
 rm(known_CH_gene_list, bick_genes)
 ```
 
@@ -136,7 +167,7 @@ AB_distribution_variants <- gnomad_variants %>%
   filter(adjusted_AB_pval < pval_selection)
 ```
 In chromosome `r as.character(AB_distribution_variants %>% distinct(X.CHROM))`, the number of variants with BH on AB distribution < `r pval_selection` is `r nrow(AB_distribution_variants %>% distinct(IDs))`.
-`r emo::ji("warning")`<span style="color: red;">Chnage to < 0.05 not ≤</span>
+`r emo::ji("warning")`<span style="color: red;">Changed to < 0.05 not ≤</span>
 `
 
 ```{r AB Hedges g}
@@ -158,6 +189,12 @@ prot_coding <- clean_AB_variants %>%
   filter(is_gencode_protein_coding_gene == "Yes")
 ```
 In chromosome `r as.character(prot_coding %>% distinct(X.CHROM))`, the number of variants which are on a protein coding gene is `r nrow(prot_coding %>% distinct(IDs))`.
+
+```{r}
+CH_variants1 <- prot_coding %>% 
+  filter(variant_in_cosmic == "Yes")
+```
+`r emo::ji("pencil")` If we were to compare 2 pipeline with 1 being no age filter but a variant in cosmic filter, we would have `r nrow(CH_variants1 %>% distinct(IDs))`.
 
 ```{r age BH}
 age_distribution_variants <- prot_coding %>% 
@@ -182,12 +219,11 @@ In chromosome `r as.character(CH_variants %>% distinct(X.CHROM))`, the number of
 
 # **Figure 1** GnomAD variants description / description AB filter
 ## **Figure 1A** Consort diagram
-`r emo::ji("pencil")` <span style="color: red;">Need re-wording</span>
 ```{r consort, fig.width=12, out.width = '75%'}
 # study_cohorts <-
 #   gnomad_variants %>%
 #   distinct(IDs, .keep_all = TRUE) %>%
-#   cohort_start("**Assessed for eligibility**") %>%
+#   cohort_start("**Variants considered**") %>%
 #   # Define cohorts using named expressions
 #   # Notice that you can use previously defined cohorts in subsequent steps
 #   cohort_define(
@@ -195,19 +231,19 @@ In chromosome `r as.character(CH_variants %>% distinct(X.CHROM))`, the number of
 #     AB_variants = .full %>%
 #       filter(adjusted_AB_pval <= pval_selection)  %>%
 #       filter(AB_effect_size_cat == AB_hedges_selection),
-#     
+# 
 #     clean_AB_variants = AB_variants %>%
 #       filter(contaminated_AB == "clean sequencing"),
-#     
+# 
 #     protcoding_variants = clean_AB_variants  %>%
 #       filter(is_gencode_protein_coding_gene == "Yes"),
-#     
+# 
 #     CH_variants = protcoding_variants  %>%
-#       filter(adjusted_age_pval <= pval_selection) %>% 
+#       filter(adjusted_age_pval <= pval_selection) %>%
 #       filter(!str_detect(age_effect_size_cat, age_hedges_selection)),
-#     
+# 
 #     CH_variants_end = CH_variants,
-#     
+# 
 #     # anti_join is useful for counting exclusions
 #     excluded1 = anti_join(.full, AB_variants, by = "IDs"),
 #     excluded2 = anti_join(AB_variants, clean_AB_variants, by = "IDs"),
@@ -217,14 +253,14 @@ In chromosome `r as.character(CH_variants %>% distinct(X.CHROM))`, the number of
 #   # Provide text labels for cohorts
 #   cohort_label(
 #     excluded1 = "<span style='color:darkblue'>Exclude germline variants</span>",
-#     excluded2 = "<span style='color:darkblue'>Exclude variants with AB 'sequencing noise-contamination'</span>",
+#     excluded2 = "<span style='color:darkblue'>Exclude variants with sequencing artifacts</span>",
 #     excluded3 = "<span style='color:darkblue'>Select for protein coding mutations</span>",
-#     excluded4 = "<span style='color:darkblue'>Exclude non age-dependent mutations</span>",
-#     AB_variants = "**Fit somatic mutation**",
-#     clean_AB_variants = "**Confirmed cleaned mutation**",
-#     protcoding_variants = "**Confirmed protein coding somatic mutation**",
+#     excluded4 = "<span style='color:darkblue'>Exclude non-age-skewed mutations</span>",
+#     AB_variants = "**Peripheral blood somatic mutations**",
+#     # clean_AB_variants = "**To be removed after question**",
+#     protcoding_variants = "**Protein-coding somatic mutations**",
 #     # CH_variants = "**CH variants**",
-#     CH_variants_end = "**Sample/Variants Study**"
+#     CH_variants_end = "**Age-dependent peripheral blood somatic mutations**"
 #   )
 # study_consort <- study_cohorts %>%
 #   consort_box_add(
@@ -235,12 +271,9 @@ In chromosome `r as.character(CH_variants %>% distinct(X.CHROM))`, the number of
 #     # first top excluded box at 0.2 (right from 0.05 eligibility box)
 #     "exc_germline", 0.2, 35, glue::glue(
 #       "{cohort_count_adorn(study_cohorts, excluded1)}<br>
-#       • BH pval ≤ 0.05<br> 
+#       • BH pval ≤ 0.05<br>
 #       • Hedges g == 'large'
 #       ")
-#   ) %>%
-#   consort_box_add(
-#     "AB_variants", 0.05, 30, cohort_count_adorn(study_cohorts, AB_variants)
 #   ) %>%
 #   consort_box_add(
 #     "exc_contamination", 0.2, 25, glue::glue(
@@ -248,8 +281,11 @@ In chromosome `r as.character(CH_variants %>% distinct(X.CHROM))`, the number of
 #       • variants with AB 'sequencing noise-contamination' free
 #       ")
 #   ) %>%
+#   # consort_box_add(
+#   #   "AB_variants", 0.05, 30, cohort_count_adorn(study_cohorts, AB_variants)
+#   # ) %>%
 #   consort_box_add(
-#     "clean_AB_variants", 0.05, 20, cohort_count_adorn(study_cohorts, clean_AB_variants)
+#     "AB_variants", 0.05, 20, cohort_count_adorn(study_cohorts, AB_variants)
 #   ) %>%
 #   consort_box_add(
 #     "exc_non_protein_coding", 0.2, 15, glue::glue(
@@ -263,7 +299,7 @@ In chromosome `r as.character(CH_variants %>% distinct(X.CHROM))`, the number of
 #   consort_box_add(
 #     "exc_non_age_skew", 0.2, 5, glue::glue(
 #       "{cohort_count_adorn(study_cohorts, excluded4)}<br>
-#       • BH pval ≤ 0.05<br> 
+#       • BH pval ≤ 0.05<br>
 #       • Hedges g == 'large' or 'medium'
 #       ")
 #   ) %>%
@@ -440,26 +476,26 @@ knitr::include_graphics('/Users/colinccm/Documents/GitHub/Gillis/CH_gnomAD/conso
 
 b <- gnomad_variants %>% 
   select(IDs, AB_distribution_mean) %>% 
-  mutate(data = "Population start") %>% 
+  mutate(data = "Population variants") %>% 
   bind_rows(., AB_distribution_variants %>% 
               select(IDs, AB_distribution_mean) %>% 
               mutate(data = "Fit AB BH selection")) %>% 
 
   bind_rows(., hedges_variants %>%
               select(IDs, AB_distribution_mean) %>% 
-              mutate(data = "Fit AB effect size selection")) %>% 
+              mutate(data = "Fit AB effect size")) %>% 
   bind_rows(., clean_AB_variants %>%
               select(IDs, AB_distribution_mean) %>% 
-              mutate(data = "Fit AB sequencing noise exclusion")) %>% 
+              mutate(data = "Peripheral blood somatic mutations")) %>% 
   bind_rows(., prot_coding %>%
               select(IDs, AB_distribution_mean) %>% 
-              mutate(data = "Fit protein coding selection")) %>% 
+              mutate(data = "Protein-coding somatic mutations")) %>% 
   bind_rows(., age_distribution_variants %>%
               select(IDs, AB_distribution_mean) %>% 
               mutate(data = "Fit Age BH selection")) %>% 
   bind_rows(., CH_variants %>%
               select(IDs, AB_distribution_mean) %>% 
-              mutate(data = "Fit Age effect size selection")) %>% 
+              mutate(data = "Age-dependent peripheral blood somatic mutations")) %>% 
   
   mutate(AB_distribution_mean = round(AB_distribution_mean, 2)) %>% 
   
@@ -467,9 +503,9 @@ b <- gnomad_variants %>%
   group_by(AB_distribution_mean, data) %>% 
   summarise(count = n()) %>% 
   ungroup() %>% 
-  mutate(data = factor(data, levels= c("Population start", "Fit AB BH selection", "Fit AB effect size selection", 
-                                       "Fit AB sequencing noise exclusion", "Fit protein coding selection",
-                                       "Fit Age BH selection", "Fit Age effect size selection"
+  mutate(data = factor(data, levels= c("Population variants", "Fit AB BH selection", "Fit AB effect size", 
+                                       "Peripheral blood somatic mutations", "Protein-coding somatic mutations",
+                                       "Fit Age BH selection", "Age-dependent peripheral blood somatic mutations"
                                          ))) 
 # b %>%
 #   ggplot(aes(x= AB_distribution_mean, y=count, fill= data, color= data
@@ -479,7 +515,17 @@ b <- gnomad_variants %>%
 #   scale_fill_brewer(palette = "Oranges")+
 #   ggtitle("Using geom area")
 
+# b %>%
+#   ggplot(aes(x= AB_distribution_mean, y=count, fill= data
+#              ))+
+#   geom_area(position = "identity") +
+#   scale_fill_viridis(discrete = TRUE)+
+#   ggtitle("Using geom area")
+
 b %>%
+  filter(data %in% c("Population variants", "Peripheral blood somatic mutations",
+                     "Protein-coding somatic mutations", "Age-dependent peripheral blood somatic mutations"
+  )) %>% 
   ggplot(aes(x= AB_distribution_mean, y=count, fill= data
              ))+
   geom_area(position = "identity") +
@@ -542,56 +588,6 @@ b %>%
 
 ```
 
-## **Figure 1C**. Variants in Chromosomes
-Number of mutations per chromosome
-```{r}
-tbl1 <- gnomad_variants %>% 
-  distinct(IDs, .keep_all = TRUE) %>% 
-  select(X.CHROM) %>% 
-  mutate(in_gnomAD = "in_gnomAD") %>% 
-  tbl_summary(by=in_gnomAD)
-tbl2 <- CH_variants %>% 
-  distinct(IDs, .keep_all = TRUE) %>% 
-  select(X.CHROM) %>% 
-  mutate(after_filters = "after_filters") %>% 
-  tbl_summary(by=after_filters)
-tbl_merge(list(tbl1, tbl2))
-
-set.seed(123)
-data <- data.frame(
-  chromosome=c(paste("chr", 1:23)),
-  value=c(sample(10000:50000, 23, replace = FALSE, prob = NULL))
-)
-
-# Basic piechart
-ggplot(data, aes(x="", y=value, fill=chromosome)) +
-  geom_bar(stat="identity", width=1, color="lightgrey", size=0.1) +
-  scale_fill_viridis_d(option = "G")+
-  coord_polar("y", start=0)+
-  theme_void()
-
-# gnomad_variants %>% 
-#   distinct(IDs, .keep_all = TRUE) %>% 
-#   mutate(selected_variant = case_when(
-#     adjusted_AB_pval <= pval_selection &
-#     !str_detect(AB_effect_size_cat, AB_hedges_selection) &
-#     is_gencode_protein_coding_gene == "Yes"                ~ "potential CH",
-#     TRUE                                                   ~ "eliminated"
-#   )) %>% 
-#   select(IDs, total_allele_balance, SYMBOL, selected_variant) %>% 
-#   group_by(SYMBOL, selected_variant) %>% 
-#   summarise(sum_individuals_with_mutations = sum(total_allele_balance)) %>% 
-#   ggplot(aes(x= fct_reorder(SYMBOL, desc(sum_individuals_with_mutations)), y= sum_individuals_with_mutations, fill= selected_variant))+
-#   geom_bar(stat = "identity")+
-#   ggtitle("Prevalence of mutations per gene in chromosome 2")+ 
-#   labs(x= "genes", y="Number of individuals")+
-#   coord_flip()
-```
-`r emo::ji("pencil")` <span style="color: red;">Could do a pie for before/after selection....</span>  
-<span style="color: red;">Nbr of mutation per chr</span>
-<span style="color: red;">Nbr of mutation per gene per chr</span>
-<span style="color: red;">Grouping high vs low mutations</span>
-
 # **Figure 2** Description of the CH variants - Only focus on CH variants after filtering
 ## **Figure 2A**  Prevalence plot - How many individuals who have mutation in 1 gene
 `r emo::ji("pencil")` <span style="color: red;">Removed prevalence plot</span>
@@ -608,29 +604,90 @@ ggplot(data, aes(x="", y=value, fill=chromosome)) +
 #   ggtitle("Prevalence of mutations per gene in chromosome 2")+ 
 #   labs(x= "genes", y="Number of individuals")+
 #   coord_flip()
+```
+
+Those genes are in our selection - DNMT3A would be in page 10 so about 100 genes have higher prevalence
+```{r}
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  select(IDs, total_allele_balance, SYMBOL, mutations_in_BickWHO) %>%
+  group_by(SYMBOL, mutations_in_BickWHO) %>%
+  summarise(sum_individuals_with_mutations = sum(total_allele_balance),
+            number_of_variants = n()) %>%
+  arrange(desc(mutations_in_BickWHO), desc(sum_individuals_with_mutations))
 
 CH_variants %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
   select(IDs, total_allele_balance, SYMBOL, mutations_in_BickWHO) %>%
   group_by(SYMBOL, mutations_in_BickWHO) %>%
-  summarise(sum_individuals_with_mutations = sum(total_allele_balance)) %>%
-  arrange(desc(mutations_in_BickWHO), desc(sum_individuals_with_mutations))
+  summarise(sum_individuals_with_mutations = sum(total_allele_balance),
+            number_of_variants = n()) %>%
+  arrange(desc(mutations_in_BickWHO), desc(sum_individuals_with_mutations)) %>%
+  filter(SYMBOL == "SF3B1" | SYMBOL == "DNMT3A")
+```
 
+```{r}
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  mutate(ab_hist_alt_bin_freq = str_match(INFO, "ab_hist_alt_bin_freq=(.*?);")[,2]) %>% 
+  select(IDs, total_allele_balance, SYMBOL, ab_hist_alt_bin_freq, mutations_in_BickWHO) %>%
+  filter(SYMBOL == "SF3B1")
+
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  mutate(ab_hist_alt_bin_freq = str_match(INFO, "ab_hist_alt_bin_freq=(.*?);")[,2]) %>% 
+  mutate(nbr_hom_control_subsetpop = str_match(INFO, "controls_nhomalt=(.*?);")[,2]) %>% 
+  mutate(nbr_hom_individuals_in_samples = str_match(INFO, ";nhomalt=(.*?);")[,2]) %>% 
+  select(IDs, total_allele_balance, SYMBOL, ab_hist_alt_bin_freq, 
+         nbr_hom_individuals, nbr_hom_control_subsetpop, nbr_hom_individuals_in_samples) %>%
+  filter(SYMBOL == "ANKRD36C")
+
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  select(IDs, total_allele_balance, SYMBOL, mutations_in_BickWHO, exon_effective_length) %>%
+  group_by(SYMBOL, mutations_in_BickWHO, exon_effective_length) %>%
+  summarise(sum_individuals_with_mutations = sum(total_allele_balance),
+            number_of_variants = n()) %>%
+  arrange(desc(mutations_in_BickWHO), desc(sum_individuals_with_mutations))
+```
+
+```{r}
 CH_variants %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
   select(IDs, total_allele_balance, SYMBOL, mutations_in_BickWHO, INFO) %>%
   arrange(desc(mutations_in_BickWHO), SYMBOL, desc(total_allele_balance)) %>% 
   mutate(AN = str_match(INFO, "AN=(.*?);")[,2]) %>% 
-  select(-INFO)
+  select(-INFO) %>% 
+  filter(SYMBOL %in% c("DNMT3A", "SF3B1"))
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  select(IDs, total_allele_balance, SYMBOL, mutations_in_BickWHO, INFO) %>%
+  arrange(desc(mutations_in_BickWHO), SYMBOL, desc(total_allele_balance)) %>% 
+  mutate(AN = str_match(INFO, "AN=(.*?);")[,2]) %>% 
+  select(-INFO) %>% 
+  filter(SYMBOL %in% c("ANKRD36C"))
 ```
 
 ## **Figure 2B**  VEP
-## VEP : Higher rank only - known CH variant (can do the same for all potential variants) 
-```{r extract vep}
-variants_in_gnomAD <- CH_variants %>% 
-  distinct(IDs, .keep_all = TRUE) 
+```{r vep from Yi-Han}
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  select(Func.refGene, ExonicFunc.refGene, 
+         new_HGVSc, SIFT_pred, Polyphen2_HDIV_pred, 
+         FATHMM_pred, CADD_phred, CADD_phred_cat, CLNSIG) %>% 
+  tbl_summary(sort = list(everything() ~ "frequency")) %>% 
+  bold_labels() %>% 
+  modify_header(
+    label = "**VEPs**"
+  )
+```
 
-vep_in_gnomAD <- variants_in_gnomAD %>%
+```{r extract vep}
+# variants_in_gnomAD <- CH_variants %>% 
+#   distinct(IDs, .keep_all = TRUE) 
+
+vep_in_gnomAD <- CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>% 
   mutate(ens_vep = str_match(INFO, ";vep=(.*?)$")[,2])
 vep_in_gnomAD <- vep_in_gnomAD %>%
   separate(col = ens_vep, paste("ens_vep", 1:25, sep=""),
@@ -658,50 +715,49 @@ vep_in_gnomAD <- vep_in_gnomAD %>%
            sep = "\\|", remove = F, extra = "warn", fill = "right")
 
 vep_in_gnomAD <- vep_in_gnomAD %>%
-  mutate(HGVSc = str_match(HGVSc, ".(>).")[,1]) %>%
-  mutate(SIFT = str_match(SIFT, "[:alnum:]*")[,1]) %>%
-  mutate(PolyPhen = str_match(PolyPhen, "[:alnum:]*_[:alnum:]*|[:alnum:]*")[,1]) %>% 
+  # mutate(HGVSc = str_match(HGVSc, ".(>).")[,1]) %>%
+  # mutate(SIFT = str_match(SIFT, "[:alnum:]*")[,1]) %>%
+  # mutate(PolyPhen = str_match(PolyPhen, "[:alnum:]*_[:alnum:]*|[:alnum:]*")[,1]) %>% 
   mutate(SOMATIC = case_when(
     str_detect(SOMATIC, "1")      ~ "Yes",
     TRUE                          ~ "No"
-  )) %>% 
-  mutate(PHENO = case_when(
-    str_detect(PHENO, "1")        ~ "Yes",
-    TRUE                          ~ "No"
-  ))
+  )) # %>% 
+  # mutate(PHENO = case_when(
+  #   str_detect(PHENO, "1")        ~ "Yes",
+  #   TRUE                          ~ "No"
+  # ))
 ```
 
-`r emo::ji("warning")` **multiple VEP per variant**
-```{r}
-vep_in_gnomAD %>% 
-  distinct(IDs, .keep_all = TRUE) %>% 
-  select(consequence_group) %>% 
-  tbl_summary(sort = list(everything() ~ "frequency")) %>% 
-  bold_labels() %>% 
-  modify_header(
-    label = "**VEP in gmomAD**"
-  )
-```
+
 
 <span style="color: red;">Will need some more work to extract the value related to the best ranked consequence.</span>  
 ```{r}
 vep_in_gnomAD %>% 
-  select(consequence_group,
-         HGVSc,
+  select(
          VARIANT_CLASS,
-         GENE_PHENO,
-         SIFT,
-         PolyPhen,
-         CLIN_SIG,
-         SOMATIC,
-         PHENO) %>% 
-  tbl_summary(type = list(c(SOMATIC, PHENO) ~ "categorical"),
+         SOMATIC) %>% 
+  tbl_summary(type = list(c(SOMATIC) ~ "categorical"),
               sort = list(everything() ~ "frequency")) %>% 
   bold_labels() %>% 
   modify_header(
     label = "**VEP in gmomAD**"
   ) # %>%
   # modify_spanning_header(all_stat_cols() ~ "**Variants**")
+```
+<br>
+<br>
+
+***
+<br>
+
+Other data
+```{r}
+CH_variants %>% 
+  distinct(IDs, .keep_all = TRUE) %>% 
+  mutate(popmax = str_match(INFO, ";popmax=(.*?);")[,2]) %>% 
+  select(depth_allele, allele_type, variant_type, controls_popmax, popmax) %>% 
+  tbl_summary(sort = list(everything() ~ "frequency")) %>% 
+  bold_labels()
 ```
 <br>
 <br>
@@ -717,7 +773,8 @@ vep_in_gnomAD %>%
 ```{r}
 extract_AB <- CH_variants %>% 
   # filter(mutations_in_BickWHO == "Yes") %>%
-  filter(IDs == "2-25234373-C-T") %>%
+  filter(IDs %in% c("2-25234373-C-T", "2-25235726-A-G",
+                    "2-197402110-T-C")) %>%
   distinct(IDs, .keep_all = TRUE)
 
 gnomad <- extract_AB %>%
@@ -742,7 +799,8 @@ gnomad <- extract_AB %>%
           "0.45-0.50" = 2286, "0.50-0.55" = 1737, "0.55-0.60" = 506,
           "0.60-0.65" = 112, "0.65-0.70" = 14, "0.70-0.75" = 4,
           "0.75-0.80" = 0, "0.80-0.85" = 1, "0.85-0.90" = 0,
-          "0.90-0.95" = 0, "0.95-1.00" = 0) %>%
+          "0.90-0.95" = 0, "0.95-1.00" = 0, .before = 1
+          ) %>%
   mutate(total_allele_balance = rowSums(select(.,`0.00-0.05`:`0.95-1.00`), na.rm = TRUE)) %>%
   
   select(IDs, everything())
@@ -814,40 +872,10 @@ for(i in unique(gnomad$IDs)) {
     geom_text(
       data    = data_plot %>% 
         filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("p-AB= ", round(allele_balance_pval, 3))),
-      colour = "black",
-      hjust   = 0,
-      vjust   = -30
-    )+
-    geom_text(
-      data    = data_plot %>% 
-        filter(IDs == i),
       mapping = aes(x = -Inf, y = -Inf, label = paste0("p-AB adjusted= ", round(adjusted_AB_pval, 3))),
       colour = "red",
       hjust   = 0,
       vjust   = -28
-    )+
-    geom_text(
-      data    = data_plot %>% 
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(AB_effect_size, 3))),
-      hjust   = 0,
-      vjust   = -17
-    )+
-    geom_text(
-      data    = data_plot %>% 
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", AB_effect_size_cat)),
-      hjust   = 0,
-      vjust   = -15
-    )+
-    geom_text(
-      data    = data_plot %>% 
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_individuals with age= ", total_allele_balance)),
-      colour = "darkblue",
-      hjust   = 0,
-      vjust   = -min(data_plot$AB_frequency)
     )
   
   print(p)
@@ -861,7 +889,8 @@ for(i in unique(gnomad$IDs)) {
 ```{r}
 extract_Age <- CH_variants %>% 
   # filter(mutations_in_BickWHO == "Yes") %>%
-  filter(IDs == "2-25234373-C-T") %>%
+  filter(IDs %in% c("2-25234373-C-T", "2-25235726-A-G",
+                    "2-197402110-T-C")) %>%
   distinct(IDs, .keep_all = TRUE)
 
 extract_Age <- extract_Age %>% 
@@ -887,7 +916,8 @@ extract_Age <- extract_Age %>%
           "55-60" = 11933,"60-65" = 10534,
           "65-70" = 8882,"70-75" = 5991,
           "75-80" = 4136,
-          ">80" = 1935) %>%
+          ">80" = 1935, .before = 1
+          ) %>%
   mutate(nbr_individuals = rowSums(select(.,`<30`:`>80`), na.rm = TRUE))
 
 extract_Age <- extract_Age %>% 
@@ -926,7 +956,7 @@ for(i in unique(extract_Age$IDs)) {
   All <- extract_Age %>% 
     filter(IDs == "All individuals"
   ) %>% 
-    mutate(IDs = "Reference")
+    mutate(IDs = paste0("Reference= ", ID))
   data_plot <- extract_Age %>% 
     filter(IDs == i
     ) %>% 
@@ -956,68 +986,6 @@ for(i in unique(extract_Age$IDs)) {
       colour = "black",
       hjust   = 0,
       vjust   = -11
-    )+
-    geom_text(
-      data    = data_plot %>% 
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("Effect size Hedges g= ", round(age_effect_size, 3))),
-      hjust   = 0,
-      vjust   = -17
-    )+
-    geom_text(
-      data    = data_plot %>% 
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("Hedges cat= ", age_effect_size_cat)),
-      hjust   = 0,
-      vjust   = -15
-    )+
-    geom_text(
-      data    = data_plot %>% 
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_individuals= ", nbr_individuals)),
-      colour = "darkblue",
-      hjust   = 0,
-      vjust   = -min(data_plot$sample_frequency)
-    )+
-    geom_text(
-      data    = data_plot %>%
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste("Is in cosmic?", variant_in_cosmic,",",Mutation.somatic.status)),
-      colour = "purple",
-      hjust   = 0,
-      vjust   = -35
-    )+
-    geom_text(
-      data    = data_plot %>%
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("HGVSP= ", HGVSP)),
-      colour = "purple",
-      hjust   = 0,
-      vjust   = -33
-    )+
-    geom_text(
-      data    = data_plot %>%
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("occurrence= ", occurrence_in_cosmic)),
-      colour = "purple",
-      hjust   = 0,
-      vjust   = -31
-    )+
-    geom_text(
-      data    = data_plot %>%
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("SYMBOL= ", SYMBOL)),
-      colour = "blue",
-      hjust   = -2,
-      vjust   = -29
-    )+
-    geom_text(
-      data    = data_plot %>%
-               filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("gene_name_cosmic= ", gene_name_cosmic)),
-      colour = "blue",
-      hjust   = -1.29,
-      vjust   = -25
     )
   
   print(p)
@@ -1031,7 +999,8 @@ for(i in unique(extract_Age$IDs)) {
 ```{r}
 hom_data <- CH_variants %>% 
   # filter(mutations_in_BickWHO == "Yes") %>%
-  filter(IDs == "2-25234373-C-T") %>%
+  filter(IDs %in% c("2-25234373-C-T", "2-25235726-A-G",
+                    "2-197402110-T-C")) %>%
   distinct(IDs, .keep_all = TRUE) %>% 
 
   select(-sample_frequency, -sample_count, -nbr_individuals) %>% 
@@ -1055,7 +1024,8 @@ hom_data <- CH_variants %>%
           "55-60" = 11933,"60-65" = 10534,
           "65-70" = 8882,"70-75" = 5991,
           "75-80" = 4136,
-          ">80" = 1935) %>%
+          ">80" = 1935, .before = 1
+          ) %>%
   mutate(nbr_individuals = rowSums(select(.,`<30`:`>80`), na.rm = TRUE))
 
 hom_data <- hom_data %>% 
@@ -1116,14 +1086,6 @@ for(i in unique(hom_data$IDs)) {
     geom_text(
       data    = data_plot %>% 
                filter(IDs == i),
-      mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_individuals= ", nbr_individuals)),
-      colour = "darkblue",
-      hjust   = 0,
-      vjust   = -min(data_plot$sample_frequency)
-    )+
-    geom_text(
-      data    = data_plot %>% 
-               filter(IDs == i),
       mapping = aes(x = -Inf, y = -Inf, label = paste0("nbr_hom_individuals= ", nbr_hom_individuals)),
       colour = "darkblue",
       hjust   = 0,
@@ -1146,47 +1108,43 @@ for(i in unique(hom_data$IDs)) {
 # **Figure4** Disparities in CH variants (VAF **non-cancer pop**) - 4 first - Need pick precise IDs.
 nc_freq_allele_count = str_match(INFO, "non_cancer_AF=(.*?);")[,2])  
 non_cancer_AF, Alternate allele frequency in samples in the non_cancer subset  
+`r emo::ji("pencil")` For Nancy
 ```{r}
-variants_in_gnomAD %>% 
+CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>% 
+  filter(IDs %in% c("2-25234373-C-T", "2-25235726-A-G",
+                    "2-197402110-T-C")) %>%
+  mutate(AF = str_match(INFO, "AF=(.*?);vep")[,2]) %>% 
+  select(IDs, AF)
+
+CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>%
+  filter(IDs %in% c("2-25234373-C-T", "2-25235726-A-G",
+                    "2-197402110-T-C")) %>%
+  distinct(IDs, .keep_all = TRUE) %>% 
+  mutate(popmax = str_match(INFO, ";popmax=(.*?);")[,2]) %>% 
+  select(popmax, 
+         nc_freq_allele_count, nc_freq_allele_count_female, nc_freq_allele_count_male,
+         nc_alt_allele_count,  nc_alt_allele_count_female, nc_alt_allele_count_male,
+         nc_freq_allele_count_afr, nc_freq_allele_count_afr_female, nc_freq_allele_count_afr_male,
+         nc_alt_allele_count_afr, nc_alt_allele_count_afr_female, nc_alt_allele_count_afr_male,
+         nc_freq_allele_count_amr, nc_freq_allele_count_amr_female, nc_freq_allele_count_amr_male,
+         nc_freq_allele_count_nfe, nc_freq_allele_count_nfe_female, nc_freq_allele_count_nfe_male) 
+```
+
+```{r}
+CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>% 
   summarise(mean_of_nc_freq_allele_count = mean(nc_freq_allele_count),
             median_of_nc_freq_allele_count = median(nc_freq_allele_count),
             min_of_nc_freq_allele_count = min(nc_freq_allele_count),
-            max_of_nc_freq_allele_count = max(nc_freq_allele_count),)
+            max_of_nc_freq_allele_count = max(nc_freq_allele_count))
+```
 
-
-variants_in_gnomAD %>% 
-  select(IDs,
-         nc_freq_allele_count, nc_freq_allele_count_female, nc_freq_allele_count_male,
-         nc_freq_allele_count_afr, nc_freq_allele_count_afr_female, nc_freq_allele_count_afr_male,
-         nc_freq_allele_count_amr, nc_freq_allele_count_amr_female, nc_freq_allele_count_amr_male,
-         nc_freq_allele_count_nfe, nc_freq_allele_count_nfe_female, nc_freq_allele_count_nfe_male 
-         ) %>%
-  pivot_longer(cols = -IDs) %>%
-  mutate(value = as.numeric(value)) %>%
-  mutate(name = str_remove(name, "nc_freq_allele_count_"),
-         name = str_replace(name, "nc_freq_allele_count", "overall"),
-         name = factor(name, levels = c(
-    "male", "female", "overall", 
-    "nfe_male", "nfe_female", "nfe",
-    "amr_male", "amr_female", "amr", 
-    "afr_male", "afr_female", "afr")
-    )) %>% 
-  mutate(Sex = str_extract(name, "female|male"), Sex = case_when(
-    is.na(Sex)             ~ "overall",
-    TRUE                   ~ Sex
-  )) %>%
-  mutate(Ethnicity = str_extract(name, "afr|amr|nfe_nwe|nfe"), Ethnicity = case_when(
-    is.na(Ethnicity)       ~ "overall",
-    TRUE                   ~ Ethnicity
-  )) %>%
-  ggplot(aes(x=name, y= value, color= Ethnicity))+
-  geom_boxplot()+
-  scale_y_log10()+
-  labs(title = "Variant Allele Frequency in Non-Cancer population", 
-       x="Populations", y="log10 Alternate Allele Frequency")+
-  coord_flip()
-
-variants_in_gnomAD %>% 
+`r emo::ji("pencil")` <span style="color: red;">Need to cut axis on final figure.</span>
+```{r figure 4}
+CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>% 
   unite(IDs, c(IDs, SYMBOL)) %>% 
   select(IDs,
          nc_freq_allele_count, nc_freq_allele_count_female, nc_freq_allele_count_male,
@@ -1215,7 +1173,7 @@ variants_in_gnomAD %>%
   ggplot(aes(x=name, y= value, color= Ethnicity))+
   geom_boxplot(outlier.shape = NA)+
   scale_y_log10()+
-  labs(title = "Variant Allele Frequency in Non-Cancer population", 
+  labs(title = "Population Allele Frequency in Non-Cancer population", 
        x="Populations", y="log10 Alternate Allele Frequency")+
   coord_flip()
 ```
@@ -1223,12 +1181,89 @@ Summary statistics
 The lower and upper hinges correspond to the first and third quartiles (the 25th and 75th percentiles). 
 
 The upper whisker extends from the hinge to the largest value no further than 1.5 * IQR from the hinge (where IQR is the inter-quartile range, or distance between the first and third quartiles). The lower whisker extends from the hinge to the smallest value at most 1.5 * IQR of the hinge. Data beyond the end of the whiskers are called "outlying" points and are plotted individually.
+```{r table AF disparities values}
+CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>% 
+  unite(IDs, c(IDs, SYMBOL)) %>% 
+  select(IDs,
+         nc_freq_allele_count, nc_freq_allele_count_female, nc_freq_allele_count_male,
+         nc_freq_allele_count_afr, nc_freq_allele_count_afr_female, nc_freq_allele_count_afr_male,
+         nc_freq_allele_count_amr, nc_freq_allele_count_amr_female, nc_freq_allele_count_amr_male,
+         nc_freq_allele_count_nfe, nc_freq_allele_count_nfe_female, nc_freq_allele_count_nfe_male 
+         ) %>%
+  pivot_longer(cols = -IDs) %>%
+  mutate(value = as.numeric(value)) %>%
+  mutate(name = str_remove(name, "nc_freq_allele_count_"),
+         name = str_replace(name, "nc_freq_allele_count", "overall"),
+         name = factor(name, levels = c(
+    "male", "female", "overall", 
+    "nfe_male", "nfe_female", "nfe",
+    "amr_male", "amr_female", "amr", 
+    "afr_male", "afr_female", "afr")
+    )) %>% 
+  mutate(Sex = str_extract(name, "female|male"), Sex = case_when(
+    is.na(Sex)             ~ "overall",
+    TRUE                   ~ Sex
+  )) %>%
+  mutate(Ethnicity = str_extract(name, "afr|amr|nfe_nwe|nfe"), Ethnicity = case_when(
+    is.na(Ethnicity)       ~ "overall",
+    TRUE                   ~ Ethnicity
+  )) %>% 
+  filter(Ethnicity != "overall") %>% 
+  filter(Sex == "overall") %>% 
+  select(-IDs) %>% 
+  tbl_summary(by= Ethnicity,
+              digits = all_continuous() ~ 7
+              ) %>% 
+  bold_labels() %>% 
+  add_p() %>% bold_p(t=.05) %>% add_overall() %>% add_q()
 
-## Potential figure supplement for few variants...
-```{r, fig.width=12, fig.height=5}
-variants_in_gnomAD %>% 
+CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>% 
+  unite(IDs, c(IDs, SYMBOL)) %>% 
+  select(IDs,
+         nc_freq_allele_count, nc_freq_allele_count_female, nc_freq_allele_count_male,
+         nc_freq_allele_count_afr, nc_freq_allele_count_afr_female, nc_freq_allele_count_afr_male,
+         nc_freq_allele_count_amr, nc_freq_allele_count_amr_female, nc_freq_allele_count_amr_male,
+         nc_freq_allele_count_nfe, nc_freq_allele_count_nfe_female, nc_freq_allele_count_nfe_male 
+         ) %>%
+  pivot_longer(cols = -IDs) %>%
+  mutate(value = as.numeric(value)) %>%
+  mutate(name = str_remove(name, "nc_freq_allele_count_"),
+         name = str_replace(name, "nc_freq_allele_count", "overall"),
+         name = factor(name, levels = c(
+    "male", "female", "overall", 
+    "nfe_male", "nfe_female", "nfe",
+    "amr_male", "amr_female", "amr", 
+    "afr_male", "afr_female", "afr")
+    )) %>% 
+  mutate(Sex = str_extract(name, "female|male"), Sex = case_when(
+    is.na(Sex)             ~ "overall",
+    TRUE                   ~ Sex
+  )) %>%
+  mutate(Ethnicity = str_extract(name, "afr|amr|nfe_nwe|nfe"), Ethnicity = case_when(
+    is.na(Ethnicity)       ~ "overall",
+    TRUE                   ~ Ethnicity
+  )) %>% 
+  filter(Sex != "overall") %>% 
+  filter(Ethnicity == "overall") %>% 
+  select(-IDs) %>% 
+  tbl_summary(by= Sex,
+              digits = all_continuous() ~ 7
+              ) %>% 
+  bold_labels() %>% 
+  add_p() %>% bold_p(t=.05) %>% add_overall()
+```
+<br>
+<br>
+
+## Potential supplement figure for few variants...
+```{r figure S4, fig.width=12, fig.height=5}
+CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>% 
   # slice(1:4) %>% 
-  filter(IDs == "2-25234373-C-T" | IDs == "2-197402110-T-C") %>%
+  filter(IDs %in% c("2-25234373-C-T", "2-25235726-A-G",
+                    "2-197402110-T-C")) %>%
   unite(IDs, c(IDs, SYMBOL)) %>% 
   select(IDs,
          nc_freq_allele_count, nc_freq_allele_count_female, nc_freq_allele_count_male,
@@ -1282,14 +1317,6 @@ CH_variants %>%
 ```
 
 ```{r}
-CH_variants %>% 
-  distinct(IDs, .keep_all = TRUE) %>%
-  ggplot(aes(x=variant_in_cosmic))+
-  geom_bar()+
-  ggtitle("Number of unique selected variants present/or not present in Cosmic")
-```
-
-```{r}
 variants_in_cosmic <- CH_variants %>% 
   filter(variant_in_cosmic == "Yes")
 ```
@@ -1298,17 +1325,69 @@ In chromosome `r as.character(variants_in_cosmic %>% distinct(X.CHROM))`,
 - the number of variants present in Cosmic is `r nrow(variants_in_cosmic %>% distinct(IDs))` (1 variant is found in multiple individuals) or `r nrow(variants_in_cosmic %>% distinct(Sample.name, .keep_all = TRUE) %>% distinct(IDs))` (nbr individuals with at least 1 variant).
 
 ```{r}
-variants_in_cosmic %>% 
+a <- CH_variants %>% 
   distinct(Sample.name, .keep_all = TRUE) %>%
-  distinct(IDs, .keep_all = TRUE) %>%
+  select(Age, Sample.name) %>%
+  mutate(data = "selected variants")
+
+gnomad_variants %>% 
+  distinct(Sample.name, .keep_all = TRUE) %>%
+  filter(!Sample.name %in% c(a$Sample.name)) %>% 
   select(Age) %>%
-  tbl_summary(label = c(Age ~ "Age in Cosmic")) %>% 
-  bold_labels() %>% 
-  modify_spanning_header(all_stat_cols() ~ "Median Age of Unique individual in Cosmic with <br>at least 1 selected CH variants")
+  mutate(data = paste("not selected in chromosome", clean_AB_variants %>% distinct(X.CHROM))
+         ) %>% 
+  bind_rows(., a
+  ) %>% 
+  group_by(data) %>% 
+  mutate(mean_ = mean(Age, na.rm = TRUE)) %>% 
+  ggplot(aes(x=Age, fill= data))+
+  geom_histogram(binwidth = 1)+
+  scale_fill_manual(values = c("lightgrey", "purple"), name="")+
+  geom_vline(aes(xintercept= mean_, color= data))+
+  scale_color_manual(values = c("darkgrey", "purple"))+ 
+  guides(color = FALSE)
+
+gnomad_variants %>% 
+  distinct(Sample.name, .keep_all = TRUE) %>%
+  filter(!Sample.name %in% c(a$Sample.name)) %>% 
+  select(Age) %>%
+  mutate(data = paste("not selected in chromosome", clean_AB_variants %>% distinct(X.CHROM))
+         ) %>% 
+  bind_rows(., a
+  ) %>% 
+  select(Age, data) %>% 
+  tbl_summary(by=data) %>% 
+  bold_labels() %>% add_overall() %>% 
+  add_p() %>% bold_p(t=.05) %>% 
+  modify_header(
+    label = "**Cosmic Patients Characteristics**"
+  )
 ```
 
 ```{r}
+library(ggbreak)
 variants_in_cosmic %>% 
+  distinct(Sample.name, .keep_all = TRUE) %>%
+  select(Primary.site, Primary.histology) %>% 
+  mutate(Primary.histology = case_when(
+    Primary.site == "haematopoietic_and_lymphoid_tissue"    ~ Primary.histology,
+    TRUE    ~ NA_character_
+  )) %>% 
+  group_by(Primary.site, Primary.histology) %>%
+  summarise(sum_individuals_by_primary = n()) %>%
+  ggplot(aes(x= fct_reorder(Primary.site, sum_individuals_by_primary), 
+             y=sum_individuals_by_primary, fill= Primary.histology))+
+  geom_bar(stat = "identity")+ 
+  scale_fill_manual(breaks = c("haematopoietic_neoplasm", "lymphoid_neoplasm"), 
+                    values = c("purple", "green")) +
+  scale_y_break(c(500, 1750), 
+                ticklabels=c(1800, 2000),
+                scales=0.10) +
+  coord_flip()
+
+
+variants_in_cosmic %>% 
+  distinct(Sample.name, .keep_all = TRUE) %>%
   select(Primary.site) %>% 
   tbl_summary(
               sort = everything() ~ "frequency") %>% 
@@ -1345,6 +1424,19 @@ variants_in_cosmic %>%
   modify_spanning_header(all_stat_cols() ~ "**Samples, careful if 1 sample shows multiple gene-mutations**")
 ```
 
+```{r}
+# variants_in_cosmic %>% 
+#   distinct(IDs, .keep_all = TRUE) %>%
+#   select(Mutation.somatic.status) %>% 
+#   mutate(Mutation.somatic.status = case_when(
+#     str_detect(Mutation.somatic.status, "somatic")        ~ "reported or confirmed somatic",
+#     TRUE                                                  ~ Mutation.somatic.status
+#   )) %>% 
+#   ggplot(aes(x=Mutation.somatic.status))+
+#   geom_bar()+
+#   ggtitle("Number of unique selected variants reported or confirmed somatic")+
+#   coord_flip()
+```
 
 <br>
 <br>
@@ -1366,37 +1458,38 @@ variants_in_cosmic %>%
 ```
 
 ```{r}
-variants_in_gnomAD %>% 
-  select(consequence_group, # consequence_rank, 
-         mutations_in_BickWHO) %>% 
-  tbl_summary(by = mutations_in_BickWHO) %>% 
-  bold_labels() %>% add_overall() %>% 
-  add_p() %>% bold_p(t=.05) %>%
-  modify_spanning_header(all_stat_cols() ~ "**In Bick+WHO**")
+# CH_variants %>%
+  # distinct(IDs, .keep_all = TRUE) %>% 
+#   select(consequence_group, # consequence_rank, 
+#          mutations_in_BickWHO) %>% 
+#   tbl_summary(by = mutations_in_BickWHO) %>% 
+#   bold_labels() %>% add_overall() %>% 
+#   add_p() %>% bold_p(t=.05) %>%
+#   modify_spanning_header(all_stat_cols() ~ "**In Bick+WHO**")
 ```
 
-<span style="color: red;">Will need some more work to extract the value related to the best ranked consequence.</span>  
+<!-- <span style="color: red;">Will need some more work to extract the value related to the best ranked consequence.</span>   -->
 ```{r}
-vep_in_gnomAD %>%
-  # filter(mutations_in_BickWHO == "Yes") %>% 
-  distinct(IDs, .keep_all = TRUE) %>%
-  unite(IDs, c(IDs, SYMBOL)) %>% 
-  select(
-         HGVSc,
-         VARIANT_CLASS,
-         GENE_PHENO,
-         SIFT,
-         PolyPhen,
-         CLIN_SIG,
-         SOMATIC,
-         PHENO, mutations_in_BickWHO) %>%
-  tbl_summary(by = mutations_in_BickWHO,
-              type = list(c(SOMATIC, PHENO) ~ "categorical")) %>%
-  bold_labels() %>% add_overall() %>% 
-  modify_header(
-    label = "**VEP in gmomAD Characteristic**"
-  ) %>%
-  modify_spanning_header(all_stat_cols() ~ "**In Bick+WHO**")
+# vep_in_gnomAD %>%
+#   # filter(mutations_in_BickWHO == "Yes") %>% 
+#   distinct(IDs, .keep_all = TRUE) %>%
+#   unite(IDs, c(IDs, SYMBOL)) %>% 
+#   select(
+#          HGVSc,
+#          VARIANT_CLASS,
+#          GENE_PHENO,
+#          SIFT,
+#          PolyPhen,
+#          CLIN_SIG,
+#          SOMATIC,
+#          PHENO, mutations_in_BickWHO) %>%
+#   tbl_summary(by = mutations_in_BickWHO,
+#               type = list(c(SOMATIC, PHENO) ~ "categorical")) %>%
+#   bold_labels() %>% add_overall() %>% 
+#   modify_header(
+#     label = "**VEP in gmomAD Characteristic**"
+#   ) %>%
+#   modify_spanning_header(all_stat_cols() ~ "**In Bick+WHO**")
 ```
 
 ggridge mean AB by yes/no Bick+WHO
@@ -1409,6 +1502,16 @@ CH_variants %>%
   
   ggplot(aes(x=AB_distribution_mean, y=mutations_in_BickWHO, fill=mutations_in_BickWHO)) +
     geom_density_ridges(alpha=0.5)
+
+# CH_variants %>% 
+#   distinct(IDs, .keep_all = TRUE) %>% 
+#   mutate(AB_distribution_mean = round(AB_distribution_mean, 2)) %>% 
+#   select(AB_distribution_mean, age_distribution_mean,
+#          mutations_in_BickWHO, variant_in_cosmic) %>% 
+#   group_by(AB_distribution_mean, mutations_in_BickWHO) %>% 
+#   summarize(sumu= n()) %>% 
+#   ggplot(aes(x=AB_distribution_mean, y=sumu, fill=mutations_in_BickWHO))+
+#   geom_area()
 
 # CH_variants %>% 
 #   distinct(IDs, .keep_all = TRUE) %>% 
@@ -1425,35 +1528,10 @@ CH_variants %>%
   # geom_ridgeline()
 ```
 
-```{r}
-library(ggExtra)
-p2 <- CH_variants %>% 
-  distinct(IDs, .keep_all = TRUE) %>% 
-  ggplot(aes(x=AB_distribution_mean, y=age_distribution_mean, color=mutations_in_BickWHO, alpha=mutations_in_BickWHO))+
-  geom_point()+
-  scale_color_manual(values = c("yellow", "red"))+
-  scale_alpha_manual(values = c(0.2, 1))+
-  theme(legend.position = "bottom")
-ggMarginal(p2, type="densigram", groupColour = TRUE, groupFill = TRUE)
-```
-
-
-```{r}
-p3 <- CH_variants %>% 
-  distinct(IDs, .keep_all = TRUE) %>% 
-  ggplot(aes(x=AB_distribution_mean, y=age_distribution_mean, color=mutations_in_BickWHO, alpha=mutations_in_BickWHO,
-             shape= mutations_in_BickWHO))+
-  geom_point()+
-  scale_color_manual(values = c("yellow", "red"))+
-  scale_alpha_manual(values = c(0.5, 1))+
-  scale_shape_manual(values = c(1,16))+
-  theme(legend.position = "bottom")
-ggMarginal(p3, type="density", groupColour = TRUE, groupFill = TRUE)
-```
-
 ## VAF in Bick+WHO
 ```{r}
-variants_in_gnomAD %>%
+CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>%
   filter(mutations_in_BickWHO == "Yes") %>% 
   summarise(mean_of_nc_freq_allele_count = mean(nc_freq_allele_count, na.rm = TRUE),
             median_of_nc_freq_allele_count = median(nc_freq_allele_count),
@@ -1461,7 +1539,8 @@ variants_in_gnomAD %>%
             max_of_nc_freq_allele_count = max(nc_freq_allele_count),)
 
 
-variants_in_gnomAD %>% 
+CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>% 
   filter(mutations_in_BickWHO == "Yes") %>% 
   select(IDs,
          nc_freq_allele_count, nc_freq_allele_count_female, nc_freq_allele_count_male,
@@ -1494,40 +1573,8 @@ variants_in_gnomAD %>%
        x="Populations", y="log10 Alternate Allele Frequency")+
   coord_flip()
 
-variants_in_gnomAD %>% 
-  filter(mutations_in_BickWHO == "Yes") %>% 
-  select(IDs,
-         nc_freq_allele_count, nc_freq_allele_count_female, nc_freq_allele_count_male,
-         nc_freq_allele_count_afr, nc_freq_allele_count_afr_female, nc_freq_allele_count_afr_male,
-         nc_freq_allele_count_amr, nc_freq_allele_count_amr_female, nc_freq_allele_count_amr_male,
-         nc_freq_allele_count_nfe, nc_freq_allele_count_nfe_female, nc_freq_allele_count_nfe_male 
-         ) %>%
-  pivot_longer(cols = -IDs) %>%
-  mutate(value = as.numeric(value)) %>%
-  mutate(name = str_remove(name, "nc_freq_allele_count_"),
-         name = str_replace(name, "nc_freq_allele_count", "overall"),
-         name = factor(name, levels = c(
-    "male", "female", "overall", 
-    "nfe_male", "nfe_female", "nfe",
-    "amr_male", "amr_female", "amr", 
-    "afr_male", "afr_female", "afr")
-    )) %>% 
-  mutate(Sex = str_extract(name, "female|male"), Sex = case_when(
-    is.na(Sex)             ~ "overall",
-    TRUE                   ~ Sex
-  )) %>%
-  mutate(Ethnicity = str_extract(name, "afr|amr|nfe_nwe|nfe"), Ethnicity = case_when(
-    is.na(Ethnicity)       ~ "overall",
-    TRUE                   ~ Ethnicity
-  )) %>%
-  ggplot(aes(x=name, y= value, color= Ethnicity))+
-  geom_boxplot()+
-  scale_y_log10()+
-  labs(title = "Variant Allele Frequency in Non-Cancer population & \nin Bick+WHO", 
-       x="Populations", y="log10 Alternate Allele Frequency")+
-  coord_flip()
-
-variants_in_gnomAD %>% 
+CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>% 
   distinct(IDs, .keep_all = TRUE) %>% 
   filter(mutations_in_BickWHO == "Yes") %>% 
   filter(SYMBOL %in% c("DNMT3A", "SF3B1")) %>% 
@@ -1563,7 +1610,8 @@ variants_in_gnomAD %>%
   coord_flip()+
   facet_wrap(. ~ SYMBOL)
 
-variants_in_gnomAD %>%
+CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>%
   # filter(mutations_in_BickWHO == "Yes") %>% 
   select(nc_freq_allele_count, nc_freq_allele_count_afr,
          nc_freq_allele_count_amr, nc_freq_allele_count_nfe,
@@ -1575,13 +1623,15 @@ variants_in_gnomAD %>%
   add_p() %>% bold_p(0.05) %>% add_overall() %>% 
   modify_spanning_header(c(stat_1, stat_2) ~ "**In Bick+WHO?**")
 
-tbl1 <- variants_in_gnomAD %>%
+tbl1 <- CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>%
   filter(mutations_in_BickWHO == "Yes") %>% 
   select(nc_freq_allele_count, nc_freq_allele_count_afr,
          nc_freq_allele_count_amr, nc_freq_allele_count_nfe) %>% 
   tbl_summary(
               digits = all_continuous() ~ 10)
-tbl2 <- variants_in_gnomAD %>%
+tbl2 <- CH_variants %>%
+  distinct(IDs, .keep_all = TRUE) %>%
   filter(mutations_in_BickWHO == "Yes") %>% 
   filter(SYMBOL %in% c("DNMT3A", "SF3B1")) %>% 
   select(nc_freq_allele_count, nc_freq_allele_count_afr,
@@ -1591,7 +1641,8 @@ tbl2 <- variants_in_gnomAD %>%
               digits = all_continuous() ~ 10)
 tbl_merge(list(tbl1, tbl2), tab_spanner = c("Overall in Bick+WHO", "DNMT3A SF3B1 in Bick+WHO"))
 # print("Overall")
-# variants_in_gnomAD %>%
+# CH_variants %>%
+  # distinct(IDs, .keep_all = TRUE) %>%
 #   filter(mutations_in_BickWHO == "Yes") %>% 
 #   filter(SYMBOL %in% c("DNMT3A", "SF3B1")) %>% 
 #   group_by(SYMBOL) %>% 
@@ -1601,7 +1652,8 @@ tbl_merge(list(tbl1, tbl2), tab_spanner = c("Overall in Bick+WHO", "DNMT3A SF3B1
 #             max_of_nc_freq_allele_count = max(nc_freq_allele_count))
 # 
 # print("AFR")
-# variants_in_gnomAD %>%
+# CH_variants %>%
+  # distinct(IDs, .keep_all = TRUE) %>%
 #   filter(mutations_in_BickWHO == "Yes") %>% 
 #   filter(SYMBOL %in% c("DNMT3A", "SF3B1")) %>% 
 #   group_by(SYMBOL) %>% 
@@ -1611,7 +1663,8 @@ tbl_merge(list(tbl1, tbl2), tab_spanner = c("Overall in Bick+WHO", "DNMT3A SF3B1
 #             max_of_nc_freq_allele_count = max(nc_freq_allele_count_afr))
 # 
 # print("AMR")
-# variants_in_gnomAD %>%
+# CH_variants %>%
+  # distinct(IDs, .keep_all = TRUE) %>%
 #   filter(mutations_in_BickWHO == "Yes") %>% 
 #   filter(SYMBOL %in% c("DNMT3A", "SF3B1")) %>% 
 #   group_by(SYMBOL) %>% 
@@ -1621,7 +1674,8 @@ tbl_merge(list(tbl1, tbl2), tab_spanner = c("Overall in Bick+WHO", "DNMT3A SF3B1
 #             max_of_nc_freq_allele_count = max(nc_freq_allele_count_amr))
 # 
 # print("NFE")
-# variants_in_gnomAD %>%
+# CH_variants %>%
+  # distinct(IDs, .keep_all = TRUE) %>%
 #   filter(mutations_in_BickWHO == "Yes") %>% 
 #   filter(SYMBOL %in% c("DNMT3A", "SF3B1")) %>% 
 #   group_by(SYMBOL) %>% 
@@ -1635,24 +1689,24 @@ tbl_merge(list(tbl1, tbl2), tab_spanner = c("Overall in Bick+WHO", "DNMT3A SF3B1
 
 ## Bick+WHO in Cancer pop
 ```{r, fig.width=12, fig.height=15}
-variants_in_cosmic %>% 
-  distinct(IDs, Sample.name, .keep_all = TRUE) %>%
-  ggplot(aes(x= fct_infreq(SYMBOL), fill= mutations_in_BickWHO))+
-  geom_bar()+
-  ggtitle("Number of COSMIC samples per gene")+
-  scale_fill_discrete(name = "In Bick+WHO")+
-  labs(x= NULL, y="Number of samples")+
-  coord_flip()
+# variants_in_cosmic %>% 
+#   distinct(IDs, Sample.name, .keep_all = TRUE) %>%
+#   ggplot(aes(x= fct_infreq(SYMBOL), fill= mutations_in_BickWHO))+
+#   geom_bar()+
+#   ggtitle("Number of COSMIC samples per gene")+
+#   scale_fill_discrete(name = "In Bick+WHO")+
+#   labs(x= NULL, y="Number of samples")+
+#   coord_flip()
 ```
 ```{r}
 variants_in_cosmic %>% 
-  ggplot(aes(x= fct_infreq(SYMBOL), fill= mutations_in_BickWHO))+
+  filter(mutations_in_BickWHO == "Yes") %>% 
+  ggplot(aes(x= fct_infreq(SYMBOL), fill= SYMBOL))+
   geom_bar()+
   ggtitle("Number of overall COSMIC samples per gene In Bick+WHO")+
   scale_fill_discrete(name = NULL)+
   labs(x= NULL, y="Number of samples")+
-  coord_flip()+
-  facet_wrap(. ~ mutations_in_BickWHO, scales = "free_y")
+  coord_flip()
 ```
 
 ```{r}
@@ -1670,35 +1724,35 @@ variants_in_cosmic %>%
   ) %>%
   modify_spanning_header(all_stat_cols() ~ "**In Bick+WHO**")
 
-variants_in_cosmic %>% 
-  select(Primary.site, Primary.histology, 
-         Mutation.Description,
-         FATHMM.prediction, Mutation.somatic.status,
-         mutations_in_BickWHO) %>% 
-  tbl_summary(by= mutations_in_BickWHO, 
-              sort = everything() ~ "frequency") %>% 
-  bold_labels() %>% add_overall() %>% 
-  modify_header(
-    label = "**Cosmic Patients/Cell Line Characteristics**"
-  ) %>%
-  modify_spanning_header(all_stat_cols() ~ "**Samples in Bick+WHO?, careful if 1 sample shows multiple gene-mutations**")
-
-variants_in_cosmic %>% 
-  mutate(known_CH_genes = case_when(
-    mutations_in_BickWHO == "Yes"                          ~ SYMBOL,
-    TRUE                                            ~ "Not CH genes"
-  ), known_CH_genes = fct_relevel(known_CH_genes, "Not CH genes", after = Inf)) %>% 
-  select(Primary.site, Primary.histology, 
-         Mutation.Description,
-         FATHMM.prediction, Mutation.somatic.status,
-         known_CH_genes) %>% 
-  tbl_summary(by= known_CH_genes, 
-              sort = everything() ~ "frequency") %>% 
-  bold_labels() %>% add_overall() %>% 
-  modify_header(
-    label = "**Cosmic Patients/Cell Line Characteristics**"
-  ) %>%
-  modify_spanning_header(all_stat_cols() ~ "**Samples, careful if 1 sample shows multiple gene-mutations**")
+# variants_in_cosmic %>% 
+#   select(Primary.site, Primary.histology, 
+#          Mutation.Description,
+#          FATHMM.prediction, Mutation.somatic.status,
+#          mutations_in_BickWHO) %>% 
+#   tbl_summary(by= mutations_in_BickWHO, 
+#               sort = everything() ~ "frequency") %>% 
+#   bold_labels() %>% add_overall() %>% 
+#   modify_header(
+#     label = "**Cosmic Patients/Cell Line Characteristics**"
+#   ) %>%
+#   modify_spanning_header(all_stat_cols() ~ "**Samples in Bick+WHO?, careful if 1 sample shows multiple gene-mutations**")
+# 
+# variants_in_cosmic %>% 
+#   mutate(known_CH_genes = case_when(
+#     mutations_in_BickWHO == "Yes"                          ~ SYMBOL,
+#     TRUE                                            ~ "Not CH genes"
+#   ), known_CH_genes = fct_relevel(known_CH_genes, "Not CH genes", after = Inf)) %>% 
+#   select(Primary.site, Primary.histology, 
+#          Mutation.Description,
+#          FATHMM.prediction, Mutation.somatic.status,
+#          known_CH_genes) %>% 
+#   tbl_summary(by= known_CH_genes, 
+#               sort = everything() ~ "frequency") %>% 
+#   bold_labels() %>% add_overall() %>% 
+#   modify_header(
+#     label = "**Cosmic Patients/Cell Line Characteristics**"
+#   ) %>%
+#   modify_spanning_header(all_stat_cols() ~ "**Samples, careful if 1 sample shows multiple gene-mutations**")
 ```
 
 <br>
